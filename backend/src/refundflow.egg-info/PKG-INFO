@@ -1,0 +1,38 @@
+Metadata-Version: 2.4
+Name: refundflow
+Version: 0.1.0
+Summary: Agentic refund validation and approval workflow
+Requires-Python: <3.12,>=3.11
+Requires-Dist: agent-framework-azure-ai
+Requires-Dist: azure-ai-contentsafety<2,>=1.0
+Requires-Dist: azure-ai-documentintelligence<2,>=1.0
+Requires-Dist: azure-ai-evaluation
+Requires-Dist: azure-ai-projects
+Requires-Dist: azure-communication-email
+Requires-Dist: azure-cosmos<5,>=4.9
+Requires-Dist: azure-functions
+Requires-Dist: azure-functions-durable
+Requires-Dist: azure-identity
+Requires-Dist: azure-monitor-opentelemetry<2,>=1.8.10
+Requires-Dist: azure-search-documents<12,>=11.6
+Requires-Dist: azure-storage-blob<13,>=12.25
+Requires-Dist: azure-storage-queue<13,>=12.12
+Requires-Dist: fastapi<1,>=0.115
+Requires-Dist: httpx<1,>=0.28
+Requires-Dist: orjson<4,>=3.10
+Requires-Dist: pillow<12,>=11
+Requires-Dist: pypdfium2<5,>=4.30
+Requires-Dist: pydantic<3,>=2.10
+Requires-Dist: pydantic-settings<3,>=2.7
+Requires-Dist: pyjwt[crypto]<3,>=2.10
+Requires-Dist: python-multipart<1,>=0.0.20
+Requires-Dist: stripe<12,>=11
+Requires-Dist: tenacity<10,>=9
+Requires-Dist: uvicorn[standard]<1,>=0.34
+Provides-Extra: dev
+Requires-Dist: httpx; extra == "dev"
+Requires-Dist: mypy<2,>=1.15; extra == "dev"
+Requires-Dist: pytest<9,>=8.3; extra == "dev"
+Requires-Dist: pytest-asyncio<1,>=0.25; extra == "dev"
+Requires-Dist: pytest-cov<7,>=6; extra == "dev"
+Requires-Dist: ruff<1,>=0.9; extra == "dev"

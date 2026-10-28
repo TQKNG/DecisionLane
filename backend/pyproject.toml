@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "refundflow"
+version = "0.1.0"
+description = "Agentic refund validation and approval workflow"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "agent-framework-azure-ai",
+  "azure-ai-contentsafety>=1.0,<2",
+  "azure-ai-documentintelligence>=1.0,<2",
+  "azure-ai-evaluation",
+  "azure-ai-projects",
+  "azure-communication-email",
+  "azure-cosmos>=4.9,<5",
+  "azure-functions",
+  "azure-functions-durable",
+  "azure-identity",
+  "azure-monitor-opentelemetry>=1.8.10,<2",
+  "azure-search-documents>=11.6,<12",
+  "azure-storage-blob>=12.25,<13",
+  "azure-storage-queue>=12.12,<13",
+  "fastapi>=0.115,<1",
+  "httpx>=0.28,<1",
+  "orjson>=3.10,<4",
+  "pillow>=11,<12",
+  "pypdfium2>=4.30,<5",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.7,<3",
+  "pyjwt[crypto]>=2.10,<3",
+  "python-multipart>=0.0.20,<1",
+  "stripe>=11,<12",
+  "tenacity>=9,<10",
+  "uvicorn[standard]>=0.34,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx",
+  "mypy>=1.15,<2",
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.25,<1",
+  "pytest-cov>=6,<7",
+  "ruff>=0.9,<1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+packages = ["refundflow", "api"]
