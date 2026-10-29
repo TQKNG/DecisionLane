@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
@@ -117,6 +119,6 @@ class ClaimAggregateItem(BaseModel):
     id: str
     claim_id: str
     item_type: str
-    payload: Dict[str, Any]
-    created_at: Field(default_factory = utc_now)
+    payload: dict[str, Any]
+    updated_at: datetime = Field(default_factory=utc_now)
     ttl: int | None = None

@@ -3,6 +3,7 @@ import pytest
 from refundflow.domain.models import SafetyDecision
 from refundflow.domain.safety_policy import decide_image_safety
 
+
 @pytest.mark.parametrize(
     ("scores","expected"),
     [
@@ -13,5 +14,6 @@ from refundflow.domain.safety_policy import decide_image_safety
         ({"Hate": 0, "Sexual": 6, "SelfHarm": 0, "Violence": 0}, SafetyDecision.BLOCK)
     ]
 )
+
 def test_decide_image_safety(scores: dict[str,int], expected: SafetyDecision)-> None:
     assert decide_image_safety(scores) == expected

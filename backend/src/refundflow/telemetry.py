@@ -9,11 +9,9 @@ LOGGER_NAME = 'refundflow'
 def configure_telemetry() -> logging.Logger:
     if os.getenv("ENABLE_INSTRUMENTATION", "false").lower() == "true":
         configure_azure_monitor(
-            connection_string = os.getenv(
-                "APPLICATIONINSIGHTS_CONNECTION_STRING",
-                logger_name = LOGGER_NAME,
-                enable_live_metrics = False
-            )
+            connection_string=os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"),
+            logger_name=LOGGER_NAME,
+            enable_live_metrics=False,
         )
     
     logger = logging.getLogger(LOGGER_NAME)

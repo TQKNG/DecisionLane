@@ -1,0 +1,31 @@
+from collections.abc import AsyncIterator
+from functools import lru_cache
+
+from azure.identity.aio import DefaultAzureCredential
+
+from refundflow.config import get_settings
+from refundflow.repositories.claims import ClaimRepository, InMemoryClaimRepository
+from refundflow.repositories.cosmos import CosmosClaimRepository
+
+
+@lru_cache
+def get_local_repository() -> InMemoryClaimRepository:
+    return InMemoryClaimRepository()
+
+
+async def get_claim_repository() -> AsyncIterator[ClaimRepository]:
+    settings = get_settings()
+    if settings.app_env == "local" and not settings.cosmos_endpoint:
+        yield get_local_repository()
+        return
+    credential = DefaultAzureCredential()
+    repository = CosmosClaimRepository(
+        endpoint=settings.cosmos_endpoint,
+        database_name=settings.cosmos_database,
+        credential=credential,
+    )
+    try:
+        yield repository
+    finally:
+        await repository.close()
+        await credential.close()

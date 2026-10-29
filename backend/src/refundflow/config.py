@@ -1,4 +1,3 @@
-from collections.abc import AsyncIterator
 from functools import lru_cache
 
 from pydantic import Field
@@ -62,6 +61,6 @@ class Settings(BaseSettings):
     def allowed_origin_list(self) -> list[str]:
         return [value.strip() for value in self.allowed_origins.split(",") if value.strip()]
 
-    @lru_cache
-    def get_settings() -> Settings:
-        return Settings()
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

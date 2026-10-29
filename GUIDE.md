@@ -856,6 +856,7 @@ Create `python/api/dependencies.py`:
 
 ```python
 from functools import lru_cache
+from collections.abc import AsyncIterator
 
 from azure.identity.aio import DefaultAzureCredential
 
