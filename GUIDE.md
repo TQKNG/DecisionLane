@@ -1059,6 +1059,9 @@ param environmentName string = 'dev'
 @description('Primary application region.')
 param location string = 'canadacentral'
 
+@description('Cosmos DB region.')
+param cosmosLocation string = 'canadaeast'
+
 @description('Content Safety region.')
 param contentSafetyLocation string = 'canadaeast'
 
@@ -1254,7 +1257,6 @@ resource defenderForStorage 'Microsoft.Security/defenderForStorageSettings@2022-
         isEnabled: true
         capGBPerMonth: 1
       }
-      scanResultsEventGridTopicResourceId: ''
     }
     sensitiveDataDiscovery: {
       isEnabled: false
@@ -1264,7 +1266,7 @@ resource defenderForStorage 'Microsoft.Security/defenderForStorageSettings@2022-
 
 resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   name: cosmosName
-  location: location
+  location: cosmosLocation
   kind: 'GlobalDocumentDB'
   properties: {
     databaseAccountOfferType: 'Standard'
@@ -1278,7 +1280,7 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
     }
     locations: [
       {
-        locationName: location
+        locationName: cosmosLocation
         failoverPriority: 0
         isZoneRedundant: false
       }
@@ -1358,7 +1360,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enableRbacAuthorization: true
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
-    enablePurgeProtection: false
+    enablePurgeProtection: true
     publicNetworkAccess: 'Enabled'
     sku: {
       family: 'A'
@@ -1723,14 +1725,35 @@ export ACR_ID=$(az acr show -g "$AZURE_RESOURCE_GROUP" -n "$ACR_NAME" --query id
 export SAFETY_ID=$(az cognitiveservices account show -g "$AZURE_RESOURCE_GROUP" -n "$CONTENT_SAFETY_NAME" --query id -o tsv)
 export DOCS_ID=$(az cognitiveservices account show -g "$AZURE_RESOURCE_GROUP" -n "$DOCUMENT_INTELLIGENCE_NAME" --query id -o tsv)
 export KEY_VAULT_ID=$(az keyvault show -g "$AZURE_RESOURCE_GROUP" -n "$KEY_VAULT_NAME" --query id -o tsv)
-export COMMUNICATION_SERVICE_ID=$(az communication show -g "$AZURE_RESOURCE_GROUP" -n "$COMMUNICATION_SERVICE_NAME" --query id -o tsv)
+export COMMUNICATION_SERVICE_ID=$(
+  az resource show \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --resource-type "Microsoft.Communication/communicationServices" \
+    --name "$COMMUNICATION_SERVICE_NAME" \
+    --query id \
+    -o tsv
+)
 ```
 
 Get the Cosmos account name directly because an endpoint is not an account name:
 
 ```bash
 export COSMOS_ACCOUNT_NAME=$(az cosmosdb list -g "$AZURE_RESOURCE_GROUP" --query '[0].name' -o tsv)
-export COSMOS_ID=$(az cosmosdb show -g "$AZURE_RESOURCE_GROUP" -n "$COSMOS_ACCOUNT_NAME" --query id -o tsv)
+export COSMOS_ROLE_DEFINITION_ID=$(
+  az cosmosdb sql role definition list \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --account-name "$COSMOS_ACCOUNT_NAME" \
+    --query "[?roleName=='Cosmos DB Built-in Data Contributor'].id | [0]" \
+    -o tsv
+)
+
+export COSMOS_ID=$(
+  az cosmosdb show \
+    --resource-group "$AZURE_RESOURCE_GROUP" \
+    --name "$COSMOS_ACCOUNT_NAME" \
+    --query id \
+    -o tsv
+)
 ```
 
 Assign roles to both the API and Function App identities:
@@ -1774,7 +1797,7 @@ do
   az role assignment create \
     --assignee-object-id "$principal_id" \
     --assignee-principal-type ServicePrincipal \
-    --role 'Azure Communication Services Email Sender' \
+    --role "Communication and Email Service Owner" \
     --scope "$COMMUNICATION_SERVICE_ID"
 done
 ```
@@ -1787,9 +1810,9 @@ do
   az cosmosdb sql role assignment create \
     --account-name "$COSMOS_ACCOUNT_NAME" \
     --resource-group "$AZURE_RESOURCE_GROUP" \
-    --scope '/' \
+    --scope "$COSMOS_ID" \
     --principal-id "$principal_id" \
-    --role-definition-id '00000000-0000-0000-0000-000000000002'
+    --role-definition-id "$COSMOS_ROLE_DEFINITION_ID"
 done
 ```
 
@@ -1835,7 +1858,40 @@ az rest \
 
 The result must show `true`, `true`, and `1`.
 
-Verify that Defender writes these blob tags after a test upload:
+Verify that Defender writes these blob tags after a test upload with user assigned identity:
+
+```bash
+export MY_OBJECT_ID=$(az ad signed-in-user show --query id -o tsv)
+
+echo "$MY_OBJECT_ID"
+
+az role assignment create \
+  --assignee-object-id "$MY_OBJECT_ID" \
+  --assignee-principal-type User \
+  --role "Storage Blob Data Contributor" \
+  --scope "$STORAGE_ID"
+
+az role assignment list \
+  --assignee-object-id "$MY_OBJECT_ID" \
+  --scope "$STORAGE_ID" \
+  --query '[].roleDefinitionName' \
+  -o table
+
+az storage blob upload \
+  --account-name "$STORAGE_ACCOUNT_NAME" \
+  --container-name evidence \
+  --name defender-test.txt \
+  --file /tmp/defender-test.txt \
+  --auth-mode login \
+  --overwrite 
+
+az storage blob tag list \
+  --account-name "$STORAGE_ACCOUNT_NAME" \
+  --container-name evidence \
+  --name defender-test.txt \
+  --auth-mode login \
+  -o json
+```
 
 ```text
 Malware scanning scan result
