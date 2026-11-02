@@ -2003,7 +2003,7 @@ az cognitiveservices account deployment create \
   --deployment-name 'gpt-5.6-sol' \
   --model-format OpenAI \
   --model-name 'gpt-5.6-sol' \
-  --model-version '<OFFERED_VERSION>' \
+  --model-version '2026-10-07' \
   --sku-name GlobalStandard \
   --sku-capacity 1
 
@@ -2013,7 +2013,7 @@ az cognitiveservices account deployment create \
   --deployment-name 'text-embedding-3-small' \
   --model-format OpenAI \
   --model-name 'text-embedding-3-small' \
-  --model-version '<OFFERED_VERSION>' \
+  --model-version '1' \
   --sku-name GlobalStandard \
   --sku-capacity 1
 ```
@@ -2360,6 +2360,18 @@ az search index list \
 ```
 
 Store the Search query key in Key Vault:
+
+Make sure your Azure CLI have Key Vault Secrets Officer in order to set secrets
+
+```bash
+export MY_OBJECT_ID=$(az ad signed-in-user show --query id -o tsv)
+
+az role assignment create \
+  --assignee-object-id "$MY_OBJECT_ID" \
+  --assignee-principal-type User \
+  --role "Key Vault Secrets Officer" \
+  --scope "$KEY_VAULT_ID"
+```
 
 ```bash
 az keyvault secret set \
