@@ -2485,16 +2485,28 @@ Create the SPA registration:
 
 ```bash
 export SPA_APP_OBJECT_ID=$(az ad app create \
-  --display-name 'RefundFlow Web dev' \
+  --display-name "RefundFlow Web dev" \
   --sign-in-audience AzureADMyOrg \
-  --spa-redirect-uris 'http://localhost:3000' \
-  --query id -o tsv)
+  --query id \
+  -o tsv)
 
 export SPA_CLIENT_ID=$(az ad app show \
   --id "$SPA_APP_OBJECT_ID" \
   --query appId -o tsv)
 
 az ad sp create --id "$SPA_CLIENT_ID" >/dev/null
+
+az rest \
+  --method PATCH \
+  --url "https://graph.microsoft.com/v1.0/applications/$SPA_APP_OBJECT_ID" \
+  --headers "Content-Type=application/json" \
+  --body '{
+    "spa": {
+      "redirectUris": [
+        "http://localhost:3000"
+      ]
+    }
+  }'
 
 az ad app permission add \
   --id "$SPA_CLIENT_ID" \
@@ -2522,9 +2534,9 @@ Get the API service principal and user object IDs:
 
 ```bash
 export API_SERVICE_PRINCIPAL_ID=$(az ad sp show --id "$API_CLIENT_ID" --query id -o tsv)
-export REVIEWER_USER_ID=$(az ad user show --id 'reviewer@example.com' --query id -o tsv)
-export ADMIN_USER_ID=$(az ad user show --id 'admin@example.com' --query id -o tsv)
-export CUSTOMER_USER_ID=$(az ad user show --id 'customer@example.com' --query id -o tsv)
+export REVIEWER_USER_ID=$(az ad user show --id 'reviewer@khanhnguyentrqgmail.onmicrosoft.com' --query id -o tsv)
+export ADMIN_USER_ID=$(az ad user show --id 'admin@khanhnguyentrqgmail.onmicrosoft.com' --query id -o tsv)
+export CUSTOMER_USER_ID=$(az ad user show --id 'user@khanhnguyentrqgmail.onmicrosoft.com' --query id -o tsv)
 ```
 
 Assign each role with Microsoft Graph:

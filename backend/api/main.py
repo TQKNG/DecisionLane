@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routers.claims import router as claims_router
+from api.routers.uploads import router as uploads_router
+
 from refundflow.config import get_settings
 from refundflow.telemetry import configure_telemetry
 
@@ -19,6 +21,8 @@ app.add_middleware(
     allow_headers = ["Authorization", "Content-Type"]
 )
 app.include_router(claims_router)
+app.include_router(uploads_router)
+
 
 @app.get("/healh/live", tags=["health"])
 async def live()-> dict[str,str]:
