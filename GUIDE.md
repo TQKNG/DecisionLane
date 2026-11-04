@@ -1816,6 +1816,21 @@ do
 done
 ```
 
+When local development uses the deployed Cosmos account (that is, `COSMOS_ENDPOINT` is set), grant the signed-in developer the same data-plane role. This is not needed when `APP_ENV=local` and `COSMOS_ENDPOINT` is empty, because the API uses its in-memory repository:
+
+```bash
+export CURRENT_USER_ID=$(az ad signed-in-user show --query id -o tsv)
+
+az cosmosdb sql role assignment create \
+  --account-name "$COSMOS_ACCOUNT_NAME" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --scope "/" \
+  --principal-id "$CURRENT_USER_ID" \
+  --role-definition-id "$COSMOS_ROLE_DEFINITION_ID"
+```
+
+Allow time for the role assignment to propagate, then rerun the tests. The account-level scope grants Cosmos data-plane metadata access required by the SDK as well as data access.
+
 Assign ACR pull to the API identity:
 
 ```bash

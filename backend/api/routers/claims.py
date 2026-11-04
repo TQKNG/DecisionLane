@@ -28,7 +28,7 @@ ClaimRepositoryDep = Annotated[
 @router.post("",response_model=RefundClaim,status_code=status.HTTP_201_CREATED)
 async def create_claim(
     body: CreateClaimRequest,
-    user: Annotated[CurrentUser, Depends(require_roles({"Customer"}))],
+    user: Annotated[CurrentUser, Depends(require_roles("Customer"))],
     repository: ClaimRepositoryDep
 )-> RefundClaim:
     customer_id = user.user_id
