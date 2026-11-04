@@ -122,3 +122,26 @@ class ClaimAggregateItem(BaseModel):
     payload: dict[str, Any]
     updated_at: datetime = Field(default_factory=utc_now)
     ttl: int | None = None
+
+
+class SafetyAnalysis(BaseModel):
+    decision: SafetyDecision
+    severities: dict[str,int]
+
+class ExtractedDocument(BaseModel):
+    document_id:str
+    file_name:str
+    content_type:str
+    page_count:int
+    text:str
+    key_values: dict[str,str] = Field(default_factory=dict)
+    safety: SafetyAnalysis
+
+class EvidenceBundle(BaseModel):
+    claim: RefundClaim
+    documents: list[ExtractedDocument]
+
+class GroundedAssessmentRequest(BaseModel):
+    evidence: EvidenceBundle
+    policy_citations: list[PolicyCitation]
+    policy_snapshot_id:str
