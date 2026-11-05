@@ -9,6 +9,7 @@ description = "Agentic refund validation and approval workflow"
 requires-python = ">=3.11,<3.12"
 dependencies = [
   "agent-framework-azure-ai",
+  "agent-framework-foundry",
   "azure-ai-contentsafety>=1.0,<2",
   "azure-ai-documentintelligence>=1.0,<2",
   "azure-ai-evaluation",

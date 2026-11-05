@@ -1,0 +1,327 @@
+from __future__ import annotations
+
+from datetime import timedelta
+from uuid import uuid4
+
+import azure.durable_functions as df
+import azure.functions as func
+
+from functions.services import ActivityServices
+from refundflow.domain.models import (
+    AssessmentResult,
+    ClaimAggregateItem,
+    ClaimDocument,
+    ClaimStatus,
+    DocumentProcessingStatus,
+    EvidenceBundle,
+    ExtractedDocument,
+    RefundClaim,
+    SafetyDecision,
+)
+from refundflow.services.malware import MalwareStatus
+from refundflow.workflows.assessment import run_assessment_workflow
+
+
+app = df.DFApp(http_auth_level=func.AuthLevel.FUNCTION)
+
+
+@app.route(route="refund-workflows", methods=["POST"])
+@app.durable_client_input(client_name="client")
+async def start_refund_workflow(
+    req: func.HttpRequest,
+    client: df.DurableOrchestrationClient,
+) -> func.HttpResponse:
+    body = req.get_json()
+    if not body.get("claim_id") or not body.get("document_ids"):
+        return func.HttpResponse(
+            "claim_id and document_ids are required",
+            status_code=400,
+        )
+    instance_id = await client.start_new(
+        "refund_orchestrator",
+        client_input=body,
+    )
+    return client.create_check_status_response(req, instance_id)
+
+
+@app.orchestration_trigger(context_name="context")
+def refund_orchestrator(context: df.DurableOrchestrationContext):
+    workflow_input = context.get_input()
+    claim_id = workflow_input["claim_id"]
+    document_ids = workflow_input["document_ids"]
+    yield context.call_activity(
+        "set_claim_status",
+        {"claim_id": claim_id, "status": ClaimStatus.SCANNING.value},
+    )
+
+    for document_id in document_ids:
+        scan_deadline = context.current_utc_datetime + timedelta(minutes=30)
+        while True:
+            scan_status = yield context.call_activity(
+                "check_malware_status",
+                {"claim_id": claim_id, "document_id": document_id},
+            )
+            if scan_status == MalwareStatus.CLEAN.value:
+                break
+            if scan_status in {MalwareStatus.MALICIOUS.value, MalwareStatus.ERROR.value}:
+                yield context.call_activity(
+                    "reject_document",
+                    {
+                        "claim_id": claim_id,
+                        "document_id": document_id,
+                        "reason": scan_status,
+                    },
+                )
+                return {"status": "rejected", "reason": scan_status}
+            if context.current_utc_datetime >= scan_deadline:
+                yield context.call_activity(
+                    "set_claim_status",
+                    {"claim_id": claim_id, "status": ClaimStatus.NEEDS_INFORMATION.value},
+                )
+                return {"status": "timed_out", "reason": "malware_scan_timeout"}
+            next_check = context.current_utc_datetime + timedelta(seconds=30)
+            yield context.create_timer(next_check)
+
+    yield context.call_activity(
+        "set_claim_status",
+        {"claim_id": claim_id, "status": ClaimStatus.PROCESSING.value},
+    )
+    extracted_documents = []
+    requires_safety_review = False
+    for document_id in document_ids:
+        result = yield context.call_activity(
+            "process_document",
+            {"claim_id": claim_id, "document_id": document_id},
+        )
+        if result["decision"] == SafetyDecision.BLOCK.value:
+            yield context.call_activity(
+                "set_claim_status",
+                {"claim_id": claim_id, "status": ClaimStatus.REJECTED.value},
+            )
+            return {"status": "rejected", "reason": "content_safety_block"}
+        if result["decision"] == SafetyDecision.REVIEW.value:
+            requires_safety_review = True
+        extracted_documents.append(result["document"])
+
+    assessment = yield context.call_activity(
+        "assess_claim",
+        {
+            "claim_id": claim_id,
+            "documents": extracted_documents,
+            "requires_safety_review": requires_safety_review,
+        },
+    )
+    yield context.call_activity(
+        "set_claim_status",
+        {"claim_id": claim_id, "status": ClaimStatus.PENDING_APPROVAL.value},
+    )
+
+    required_approvals = 2 if assessment["requires_two_reviewers"] else 1
+    reviewer_ids: list[str] = []
+    approval_deadline = context.current_utc_datetime + timedelta(days=7)
+    while len(reviewer_ids) < required_approvals:
+        approval_task = context.wait_for_external_event("approval_received")
+        timeout_task = context.create_timer(approval_deadline)
+        winner = yield context.task_any([approval_task, timeout_task])
+        if winner == timeout_task:
+            yield context.call_activity(
+                "set_claim_status",
+                {"claim_id": claim_id, "status": ClaimStatus.CLOSED.value},
+            )
+            return {"status": "closed", "reason": "approval_timeout"}
+        timeout_task.cancel()
+        decision = approval_task.result
+        if decision["reviewer_id"] in reviewer_ids:
+            continue
+        yield context.call_activity("record_approval", decision)
+        if decision["decision"] == "reject":
+            yield context.call_activity(
+                "set_claim_status",
+                {"claim_id": claim_id, "status": ClaimStatus.REJECTED.value},
+            )
+            yield context.call_activity(
+                "send_status_email",
+                {"claim_id": claim_id, "status": "rejected"},
+            )
+            return {"status": "rejected", "reason": "reviewer_rejected"}
+        reviewer_ids.append(decision["reviewer_id"])
+
+    yield context.call_activity(
+        "set_claim_status",
+        {"claim_id": claim_id, "status": ClaimStatus.APPROVED.value},
+    )
+    refund = yield context.call_activity_with_retry(
+        "execute_refund",
+        df.RetryOptions(first_retry_interval_in_milliseconds=5000, max_number_of_attempts=3),
+        {"claim_id": claim_id, "assessment": assessment},
+    )
+    yield context.call_activity(
+        "set_claim_status",
+        {"claim_id": claim_id, "status": ClaimStatus.REFUND_SUBMITTED.value},
+    )
+    yield context.call_activity(
+        "send_status_email",
+        {"claim_id": claim_id, "status": "refund_submitted"},
+    )
+    return {"status": "refund_submitted", "refund": refund}
+
+
+async def load_claim_and_document(
+    services: ActivityServices,
+    claim_id: str,
+    document_id: str,
+) -> tuple[RefundClaim, ClaimAggregateItem, ClaimDocument]:
+    claim = await services.repository.get_claim(claim_id)
+    if claim is None:
+        raise ValueError(f"Claim {claim_id} does not exist")
+    items = await services.repository.list_items(claim_id, "document")
+    item = next((value for value in items if value.payload["id"] == document_id), None)
+    if item is None:
+        raise ValueError(f"Document {document_id} does not exist")
+    return claim, item, ClaimDocument.model_validate(item.payload)
+
+
+@app.activity_trigger(input_name="activity_input")
+async def check_malware_status(activity_input) -> str:
+    services = ActivityServices()
+    try:
+        _, _, document = await load_claim_and_document(
+            services,
+            activity_input["claim_id"],
+            activity_input["document_id"],
+        )
+        return (await services.malware.get_status(document.blob_name)).value
+    finally:
+        await services.close()
+
+
+@app.activity_trigger(input_name="activity_input")
+async def reject_document(activity_input) -> None:
+    services = ActivityServices()
+    try:
+        claim, item, document = await load_claim_and_document(
+            services,
+            activity_input["claim_id"],
+            activity_input["document_id"],
+        )
+        document.status = DocumentProcessingStatus.MALWARE_REJECTED
+        item.payload = document.model_dump(mode="json")
+        await services.repository.upsert_item(item)
+        claim.status = ClaimStatus.REJECTED
+        await services.repository.replace_claim(claim)
+    finally:
+        await services.close()
+
+
+@app.activity_trigger(input_name="activity_input")
+async def process_document(activity_input) -> dict[str, object]:
+    services = ActivityServices()
+    try:
+        _, item, document = await load_claim_and_document(
+            services,
+            activity_input["claim_id"],
+            activity_input["document_id"],
+        )
+        content = await services.evidence_storage.download_quarantined(document.blob_name)
+        safety = await services.content_safety.analyze(content, document.content_type)
+        if safety.decision == SafetyDecision.BLOCK:
+            document.status = DocumentProcessingStatus.SAFETY_BLOCKED
+            item.payload = document.model_dump(mode="json")
+            await services.repository.upsert_item(item)
+            return {"decision": safety.decision.value, "document": None}
+
+        extracted = await services.extraction.extract(
+            document.id,
+            document.file_name,
+            document.content_type,
+            content,
+            safety,
+        )
+        if safety.decision == SafetyDecision.PASS:
+            await services.evidence_storage.promote(
+                document.blob_name,
+                content,
+                document.content_type,
+            )
+            document.status = DocumentProcessingStatus.EXTRACTION_COMPLETE
+        else:
+            document.status = DocumentProcessingStatus.SAFETY_REVIEW_REQUIRED
+        item.payload = document.model_dump(mode="json")
+        await services.repository.upsert_item(item)
+        await services.repository.upsert_item(
+            ClaimAggregateItem(
+                id=f"extraction:{document.id}",
+                claim_id=document.claim_id,
+                item_type="extraction",
+                payload=extracted.model_dump(mode="json"),
+            )
+        )
+        return {
+            "decision": safety.decision.value,
+            "document": extracted.model_dump(mode="json"),
+        }
+    finally:
+        await services.close()
+
+
+@app.activity_trigger(input_name="activity_input")
+async def assess_claim(activity_input) -> dict[str, object]:
+    services = ActivityServices()
+    try:
+        claim = await services.repository.get_claim(str(activity_input["claim_id"]))
+        if claim is None:
+            raise ValueError("Claim not found")
+        documents = [
+            ExtractedDocument.model_validate(value)
+            for value in activity_input["documents"]
+        ]
+        assessment = await run_assessment_workflow(
+            services.settings,
+            services.policy_search,
+            EvidenceBundle(claim=claim, documents=documents),
+        )
+        if bool(activity_input["requires_safety_review"]):
+            assessment.eligible = False
+            assessment.summary = f"Content safety review required. {assessment.summary}"
+        await services.repository.upsert_item(
+            ClaimAggregateItem(
+                id=f"assessment:{claim.id}",
+                claim_id=claim.id,
+                item_type="assessment",
+                payload=assessment.model_dump(mode="json"),
+            )
+        )
+        return assessment.model_dump(mode="json")
+    finally:
+        await services.close()
+
+
+@app.activity_trigger(input_name="activity_input")
+async def set_claim_status(activity_input) -> None:
+    services = ActivityServices()
+    try:
+        claim = await services.repository.get_claim(activity_input["claim_id"])
+        if claim is None:
+            raise ValueError("Claim not found")
+        claim.status = ClaimStatus(activity_input["status"])
+        await services.repository.replace_claim(claim)
+    finally:
+        await services.close()
+
+
+@app.activity_trigger(input_name="activity_input")
+async def record_approval(activity_input) -> None:
+    services = ActivityServices()
+    try:
+        claim_id = activity_input["claim_id"]
+        reviewer_id = activity_input["reviewer_id"]
+        await services.repository.append_item(
+            ClaimAggregateItem(
+                id=f"approval:{reviewer_id}",
+                claim_id=claim_id,
+                item_type="approval",
+                payload=activity_input,
+            )
+        )
+    finally:
+        await services.close()

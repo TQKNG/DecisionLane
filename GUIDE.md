@@ -3310,7 +3310,7 @@ from agent_framework import (
     WorkflowContext,
     handler,
 )
-from agent_framework.azure import FoundryChatClient
+from agent_framework.foundry import FoundryChatClient
 from azure.identity.aio import DefaultAzureCredential
 
 from refundflow.config import Settings
@@ -3841,10 +3841,10 @@ app = df.DFApp(http_auth_level=func.AuthLevel.FUNCTION)
 @app.route(route="refund-workflows", methods=["POST"])
 @app.durable_client_input(client_name="client")
 async def start_refund_workflow(
-    request: func.HttpRequest,
+    req: func.HttpRequest,
     client: df.DurableOrchestrationClient,
 ) -> func.HttpResponse:
-    body = request.get_json()
+    body = req.get_json()
     if not body.get("claim_id") or not body.get("document_ids"):
         return func.HttpResponse(
             "claim_id and document_ids are required",
@@ -3854,7 +3854,7 @@ async def start_refund_workflow(
         "refund_orchestrator",
         client_input=body,
     )
-    return client.create_check_status_response(request, instance_id)
+    return client.create_check_status_response(req, instance_id)
 
 
 @app.orchestration_trigger(context_name="context")
@@ -3995,7 +3995,7 @@ async def load_claim_and_document(
 
 
 @app.activity_trigger(input_name="activity_input")
-async def check_malware_status(activity_input: dict[str, str]) -> str:
+async def check_malware_status(activity_input) -> str:
     services = ActivityServices()
     try:
         _, _, document = await load_claim_and_document(
@@ -4009,7 +4009,7 @@ async def check_malware_status(activity_input: dict[str, str]) -> str:
 
 
 @app.activity_trigger(input_name="activity_input")
-async def reject_document(activity_input: dict[str, str]) -> None:
+async def reject_document(activity_input) -> None:
     services = ActivityServices()
     try:
         claim, item, document = await load_claim_and_document(
@@ -4027,7 +4027,7 @@ async def reject_document(activity_input: dict[str, str]) -> None:
 
 
 @app.activity_trigger(input_name="activity_input")
-async def process_document(activity_input: dict[str, str]) -> dict[str, object]:
+async def process_document(activity_input) -> dict[str, object]:
     services = ActivityServices()
     try:
         _, item, document = await load_claim_and_document(
@@ -4078,7 +4078,7 @@ async def process_document(activity_input: dict[str, str]) -> dict[str, object]:
 
 
 @app.activity_trigger(input_name="activity_input")
-async def assess_claim(activity_input: dict[str, object]) -> dict[str, object]:
+async def assess_claim(activity_input) -> dict[str, object]:
     services = ActivityServices()
     try:
         claim = await services.repository.get_claim(str(activity_input["claim_id"]))
@@ -4110,7 +4110,7 @@ async def assess_claim(activity_input: dict[str, object]) -> dict[str, object]:
 
 
 @app.activity_trigger(input_name="activity_input")
-async def set_claim_status(activity_input: dict[str, str]) -> None:
+async def set_claim_status(activity_input) -> None:
     services = ActivityServices()
     try:
         claim = await services.repository.get_claim(activity_input["claim_id"])
@@ -4123,7 +4123,7 @@ async def set_claim_status(activity_input: dict[str, str]) -> None:
 
 
 @app.activity_trigger(input_name="activity_input")
-async def record_approval(activity_input: dict[str, str]) -> None:
+async def record_approval(activity_input) -> None:
     services = ActivityServices()
     try:
         claim_id = activity_input["claim_id"]
@@ -5674,7 +5674,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from agent_framework import evaluate_workflow
-from agent_framework.azure import FoundryChatClient
+from agent_framework.foundry import FoundryChatClient
 from agent_framework.foundry import FoundryEvals
 from azure.ai.projects.aio import AIProjectClient
 from azure.identity.aio import DefaultAzureCredential

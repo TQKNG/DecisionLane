@@ -10,7 +10,7 @@ from agent_framework import (
     WorkflowContext,
     handler,
 )
-from agent_framework.azure import FoundryChatClient
+from agent_framework.foundry import FoundryChatClient
 from azure.identity.aio import DefaultAzureCredential
 
 from refundflow.config import Settings

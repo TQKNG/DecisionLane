@@ -5,7 +5,7 @@ from io import BytesIO
 import pypdfium2 as pdfium
 from azure.ai.documentintelligence.aio import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
-from azure.core.credentials_async import AsyncTokenCresdential
+from azure.core.credentials_async import AsyncTokenCredential
 from PIL import Image
 
 from refundflow.domain.models import ExtractedDocument, SafetyAnalysis

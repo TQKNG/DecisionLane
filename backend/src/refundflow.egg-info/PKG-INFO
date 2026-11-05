@@ -4,6 +4,7 @@ Version: 0.1.0
 Summary: Agentic refund validation and approval workflow
 Requires-Python: <3.12,>=3.11
 Requires-Dist: agent-framework-azure-ai
+Requires-Dist: agent-framework-foundry
 Requires-Dist: azure-ai-contentsafety<2,>=1.0
 Requires-Dist: azure-ai-documentintelligence<2,>=1.0
 Requires-Dist: azure-ai-evaluation

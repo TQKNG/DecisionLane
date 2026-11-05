@@ -1,4 +1,5 @@
 agent-framework-azure-ai
+agent-framework-foundry
 azure-ai-contentsafety<2,>=1.0
 azure-ai-documentintelligence<2,>=1.0
 azure-ai-evaluation

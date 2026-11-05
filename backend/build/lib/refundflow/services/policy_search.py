@@ -1,0 +1,58 @@
+from __future__ import annotations
+
+from azure.core.credentials import AzureKeyCredential
+from azure.search.documents.aio import SearchClient
+from azure.search.documents.models import VectorizedQuery
+
+from refundflow.domain.models import PolicyCitation
+from refundflow.services.embeddings import EmbeddingService
+
+class PolicySearchService:
+    def __init__(
+        self,
+        endpoint: str,
+        index_name:str,
+        query_key:str,
+        embedding_service: EmbeddingService
+    ) -> None:
+        self._client = SearchClient(
+            endpoint = endpoint,
+            index_name = index_name,
+            credential= AzureKeyCredential(query_key)
+        )
+        self._embedding_service = embedding_service
+
+    async def search(self, query:str, top:int = 5)-> list[PolicyCitation]:
+        vector = (await self._embedding_service.embed([query]))[0]
+        vector_query = VectorizedQuery(
+            vector=vector,
+            k_nearest_neighbors=top,
+            fields="content_vector"
+        )
+        results = await self._client.search(
+            search_text=query,
+            vector_queries=[vector_query],
+            select=[
+                "policy_id",
+                "policy_version",
+                "chunk_id",
+                "title",
+                "content"
+            ],
+            top=top
+        )
+        citations: list[PolicyCitation]=[]
+        async for result in results:
+            citations.append(
+                PolicyCitation(
+                    policy_id=result["policy_id"],
+                    policy_version=result["policy_version"],
+                    chunk_id=result["chunk_id"],
+                    title=result["title"],
+                    quote=result["content"][:800]   
+                )
+            )
+        return citations
+
+        async def close(self) -> None:
+            await self._client.close()
