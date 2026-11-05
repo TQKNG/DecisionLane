@@ -6,8 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from api.dependencies import get_claim_repository
+from api.dependencies import get_order_repository
 from refundflow.domain.models import ClaimType, RefundClaim
 from refundflow.repositories.claims import ClaimRepository
+from refundflow.repositories.orders import OrderRepository
 
 from api.auth import CurrentUser, require_roles
 
@@ -25,13 +27,26 @@ ClaimRepositoryDep = Annotated[
     Depends(get_claim_repository)
 ]
 
+OrderRepositoryDep = Annotated[
+    OrderRepository,
+    Depends(get_order_repository)
+]
+
 @router.post("",response_model=RefundClaim,status_code=status.HTTP_201_CREATED)
 async def create_claim(
     body: CreateClaimRequest,
     user: Annotated[CurrentUser, Depends(require_roles("Customer"))],
-    repository: ClaimRepositoryDep
+    repository: ClaimRepositoryDep,
+    order_repository = OrderRepositoryDep
 )-> RefundClaim:
     customer_id = user.user_id
+
+    order = await order_repository.get_order(user.user.id, body.order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.currency != body.currency or body.requested_amount > order.paid_amount:
+        raise HTTPException(status_code=400, detail="Requested refund exceeds the paid order amount")
+
     claim = RefundClaim(
         id=str(uuid4()),
         customer_id=customer_id,

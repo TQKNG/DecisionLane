@@ -145,3 +145,11 @@ class GroundedAssessmentRequest(BaseModel):
     evidence: EvidenceBundle
     policy_citations: list[PolicyCitation]
     policy_snapshot_id:str
+
+class OrderRecord(BaseModel):
+    id: str
+    customer_id:str
+    currency: str
+    paid_amount: Decimal
+    payment_intent_id: str
+

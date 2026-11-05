@@ -1,8 +1,10 @@
 from __future__ import annotations
+import os
 
 from datetime import timedelta
 from uuid import uuid4
 
+from azure.identity import DefaultAzureCredential as SyncDefaultAzureCredential
 import azure.durable_functions as df
 import azure.functions as func
 
@@ -20,7 +22,9 @@ from refundflow.domain.models import (
 )
 from refundflow.services.malware import MalwareStatus
 from refundflow.workflows.assessment import run_assessment_workflow
-
+from refundflow.repositories.orders import CosmosOrderRepository
+from refundflow.services.email import StatusEmailService
+from refundflow.services.payments import StripeRefundService
 
 app = df.DFApp(http_auth_level=func.AuthLevel.FUNCTION)
 
@@ -342,5 +346,64 @@ async def record_approval(activity_input) -> None:
                 payload=activity_input,
             )
         )
+    finally:
+        await services.close()
+
+@app.activity_trigger(input_name="activty_input")
+async def execute_refund(activity_input: dict[str,object])-> dict[str,object]:
+    services = ActivityServices()
+    order_repository = CosmosOrderRepository(
+        services.settings.cosmos_endpoint,
+        services.settings.cosmos_database,
+        services.credential
+    )
+    try:
+        claim = await services.repository.get_claim(str(activity_input["claim_id"]))
+        if claim is None:
+            raise ValueError("Claim not found")
+        assessment = AssessmentResult.model_validate(activity_input["assessment"])
+        order = await order_repository.get_order(claim.customer_id, claim.order_id)
+        if order is None:
+            raise ValueError("Order not found")
+        if assessment.proposed_refund_amount > order.paid_amout:
+            raise ValueError("Proposed amount exceeds paid amount")
+        payment_service = StripeRefundService(os.environ["STRIPE_SECRET_KEY"])
+        result = payment_service.create_refund(
+            claim.id,
+            order.payment_intent_id,
+            assessment.proposed_refund_amount,
+            order.currency
+        )
+        await services.repository.upsert_item(
+            ClaimAggregateItem(
+                id=f"refund:{claim:id}",
+                claim_id=claim.id,
+                item_type="refund",
+                payload=result
+            )
+        )
+        return result
+    finally:
+        await order_repository.close()
+        await services.close()
+
+
+@app.activity_trigger(input_name="activity_input")
+async def send_status_email(activity_input: dict[str,str])-> None:
+    services = ActivityServices()
+    try:
+        claim = await services.repository.get_claim(activity_input["claim_id"])
+        if claim is None:
+            raise ValueError("Claim not found")
+        email_credential = SyncDefaultAzureCredential()
+        email_service = StatusEmailService(
+            os.environ["ACS_EMAIL_ENDPOINT"],
+            os.environ["ACS_SENDER_ADDRESS"],
+            email_credential
+        )
+        try:
+            email_service.send(claim.customer_email, claim.id, activity_status["status"])
+        finally:
+            email_credential.close()
     finally:
         await services.close()

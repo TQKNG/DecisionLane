@@ -4424,6 +4424,12 @@ class CosmosOrderRepository:
 In a real commerce integration, synchronize this container from the order system.
 For the showcase, seed one Stripe test order.
 
+Install Stripe CLI
+
+```bash
+brew install stripe
+```
+
 Log in to Stripe and create a successful test PaymentIntent:
 
 ```bash
@@ -4563,7 +4569,15 @@ This prevents a customer from refunding an arbitrary PaymentIntent.
 
 ### 16.2 Configure Stripe and email secrets
 
-Get the Stripe test secret and webhook secret from the Stripe test dashboard or `stripe listen` output:
+Get the Stripe test secret(Dashboard) and webhook secret(CLI) from the Stripe test dashboard or `stripe listen` output:
+
+```bash
+stripe listen \
+  --events payment_intent.succeeded,payment_intent.payment_failed,refund.created,refund.updated,refund.failed,charge.refunded \
+  --forward-to localhost:8000/api/webhooks/stripe
+```
+
+Copy the returned webhook secret for related payment and refund subscription event
 
 ```bash
 az keyvault secret set \
