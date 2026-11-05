@@ -4,9 +4,8 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from azure.core.credentials_async import AsyncTokenCredential
-from azure.storage.blob import BlobSasPermissions,generate_blob_sas
+from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 from azure.storage.blob.aio import BlobServiceClient
-
 
 ALLOWED_CONTENT_TYPES={
     "application/pdf": ".pdf",

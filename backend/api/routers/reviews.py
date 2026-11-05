@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from collections import Counter
 from typing import Annotated
 
 import httpx
@@ -11,8 +13,12 @@ from refundflow.config import get_settings
 from refundflow.domain.models import AssessmentResult, ClaimStatus, RefundClaim
 from refundflow.repositories.claims import ClaimRepository
 
-
 router = APIRouter(prefix="/v1", tags=["reviews"])
+
+ClaimRepositoryDep = Annotated[
+    ClaimRepository,
+    Depends(get_claim_repository),
+]
 
 
 class ReviewDetail(BaseModel):
@@ -31,8 +37,8 @@ async def list_claims(
         CurrentUser,
         Depends(require_roles("Customer","Reviewer","Admin"))
     ],
-    requested_status:str | None = Query(default=None, alias="status"),
-    repository: ClaimRepository = Depends(get_claim_repository)
+    repository: ClaimRepositoryDep,
+    requested_status: str | None = Query(default=None, alias="status"),
 )-> list[RefundClaim]:
     customer_id = None
     if "Customer" in user.roles and not user.roles.intersection({"Reviewer", "Admin"}):
@@ -44,7 +50,7 @@ async def list_claims(
 async def get_review(
     claim_id:str,
     _: Annotated[CurrentUser, Depends(require_roles("Reviewer", "Admin"))],
-    repository: ClaimRepository = Depends(get_claim_repository)
+    repository: ClaimRepositoryDep,
 ) -> ReviewDetail:
     claim = await repository.get_claim(claim_id)
     if claim is None:
@@ -55,10 +61,8 @@ async def get_review(
     approvals = await repository.list_items(claim_id, "approval")
     return ReviewDetail(
         claim=claim,
-        assessment=AssessmentResult.model_validate(
-            assessments[-1].payload,
-            approvals = [item.payload for item in approvals]
-        ),
+        assessment=AssessmentResult.model_validate(assessments[-1].payload),
+        approvals=[item.payload for item in approvals],
     )
 
 
@@ -67,7 +71,8 @@ status_code=status.HTTP_202_ACCEPTED)
 async def decide_review(
     claim_id:str,
     body: ApprovalRequest,
-    user: Annotated[CurrentUser, Depends(require_roles("Reviewer", "Admin"))]
+    user: Annotated[CurrentUser, Depends(require_roles("Reviewer", "Admin"))],
+    repository: ClaimRepositoryDep,
 )-> dict[str,str]:
     if body.decision not in {"approve", "reject"}:
         raise HTTPException(status_code=400, detail="Decision must be approve or reject")
@@ -105,7 +110,7 @@ async def decide_review(
 @router.get("/admin/kpis")
 async def get_admin_kpis(
     _: Annotated[CurrentUser, Depends(require_roles("Admin"))],
-    repository: ClaimRepository = Depends(get_claim_repository)
+    repository: ClaimRepositoryDep,
 )-> dict[str,object]:
     claims = await repository.list_claims()
     counts = Counter(claim.status.value for claim in claims)

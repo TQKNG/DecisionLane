@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 
     foundry_project_endpoint:str =""
     foundry_resource_endpoint:str="" 
-    foundry_mode:str = "gpt-5.6-luna"
+    foundry_model:str = "gpt-5.6-luna"
     foundry_escalation_model:str = "gpt-5.6-sol"
     foundry_evaluation_model:str = "gpt-5.6-luna"
     foundry_embedding_model:str = "text-embedding-3-small"

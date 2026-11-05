@@ -7,6 +7,7 @@ from azure.search.documents.models import VectorizedQuery
 from refundflow.domain.models import PolicyCitation
 from refundflow.services.embeddings import EmbeddingService
 
+
 class PolicySearchService:
     def __init__(
         self,

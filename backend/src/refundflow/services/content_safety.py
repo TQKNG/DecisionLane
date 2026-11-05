@@ -7,7 +7,7 @@ from azure.ai.contentsafety.aio import ContentSafetyClient
 from azure.ai.contentsafety.models import AnalyzeImageOptions, ImageData
 from azure.core.credentials_async import AsyncTokenCredential
 
-from refundflow.domain.models import SafetyAnalysis, SafetyDecision
+from refundflow.domain.models import SafetyAnalysis
 from refundflow.domain.safety_policy import decide_image_safety
 
 
@@ -24,7 +24,7 @@ class ContentSafetyService:
             for item in response.categories_analysis
         }
 
-    async def analyze(self, content:bytes, content_byte:str) -> SafetyAnalysis:
+    async def analyze(self, content:bytes, content_type:str) -> SafetyAnalysis:
         images: list[bytes]
         if content_type == "application/pdf":
             document=pdfium.PdfDocument(content)
@@ -43,7 +43,7 @@ class ContentSafetyService:
         highest: dict[str,int] ={}
         for image_bytes in images:
             scores = await self._analyze_image(image_bytes)
-            for category, severity in scores.item():
+            for category, severity in scores.items():
                 highest[category] = max(highest.get(category,0), severity)
         decision = decide_image_safety(highest)
         return SafetyAnalysis(decision=decision, severities=highest)

@@ -6,6 +6,7 @@ from typing import Never
 from agent_framework import (
     Agent,
     Executor,
+    Workflow,
     WorkflowBuilder,
     WorkflowContext,
     handler,
@@ -15,15 +16,14 @@ from azure.identity.aio import DefaultAzureCredential
 
 from refundflow.config import Settings
 from refundflow.domain.models import (
-    AssessmentResult,
     AssessmentDraft,
+    AssessmentResult,
     CriterionStatus,
     EvidenceBundle,
     GroundedAssessmentRequest,
 )
 from refundflow.services.policy_search import PolicySearchService
 from refundflow.telemetry import get_trace_id
-
 
 PROMPT_VERSION = "refund-assessment-2026-01"
 
@@ -88,8 +88,7 @@ class AssessmentExecutor(Executor):
             client=FoundryChatClient(
                 project_endpoint=settings.foundry_project_endpoint,
                 model=settings.foundry_model,
-                credential=DefaultAzureCredential(),
-                default_options={"response_format": AssessmentDraft},
+                credential=DefaultAzureCredential()
             ),
             instructions=(
                 "You assess refund evidence against only the supplied policy passages. "
@@ -146,28 +145,21 @@ class AssessmentGuardExecutor(Executor):
 def build_assessment_workflow(
     settings: Settings,
     policy_search: PolicySearchService,
-):
+) -> Workflow:
+    validate_evidence = EvidenceValidationExecutor()
+    retrieve_policy = PolicyRetrievalExecutor(policy_search)
+    assess_claim = AssessmentExecutor(settings)
+    guard_assessment = AssessmentGuardExecutor()
     return (
-        WorkflowBuilder()
-        .register_executor(EvidenceValidationExecutor, name="validate_evidence")
-        .register_executor(
-            lambda: PolicyRetrievalExecutor(policy_search),
-            name="retrieve_policy",
-        )
-        .register_executor(
-            lambda: AssessmentExecutor(settings),
-            name="assess_claim",
-        )
-        .register_executor(AssessmentGuardExecutor, name="guard_assessment")
+        WorkflowBuilder(start_executor=validate_evidence)
         .add_chain(
             [
-                "validate_evidence",
-                "retrieve_policy",
-                "assess_claim",
-                "guard_assessment",
+                validate_evidence,
+                retrieve_policy,
+                assess_claim,
+                guard_assessment,
             ]
         )
-        .set_start_executor("validate_evidence")
         .build()
     )
 

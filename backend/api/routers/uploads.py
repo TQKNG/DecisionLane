@@ -14,6 +14,7 @@ from refundflow.domain.models import (
     ClaimAggregateItem,
     ClaimDocument,
     ClaimStatus,
+    RefundClaim,
 )
 from refundflow.repositories.claims import ClaimRepository
 from refundflow.services.blob_storage import (
@@ -22,8 +23,12 @@ from refundflow.services.blob_storage import (
     BlobStorageService,
 )
 
-
 router = APIRouter(prefix="/v1/claims", tags=["uploads"])
+
+ClaimRepositoryDep = Annotated[
+    ClaimRepository,
+    Depends(get_claim_repository),
+]
 
 
 class UploadRequest(BaseModel):
@@ -38,6 +43,7 @@ class UploadGrant(BaseModel):
     upload_url: str
     required_headers: dict[str, str]
 
+
 def get_blob_service() -> BlobStorageService:
     settings = get_settings()
     return BlobStorageService(
@@ -47,11 +53,18 @@ def get_blob_service() -> BlobStorageService:
         settings.quarantine_container,
     )
 
+
+BlobStorageServiceDep = Annotated[
+    BlobStorageService,
+    Depends(get_blob_service),
+]
+
+
 async def get_owned_claim(
     claim_id: str,
     user: CurrentUser,
     repository: ClaimRepository,
-):
+) -> RefundClaim:
     claim = await repository.get_claim(claim_id)
     if not claim or claim.customer_id != user.user_id:
         raise HTTPException(status_code=404, detail="Claim not found")
@@ -62,8 +75,8 @@ async def request_upload(
     claim_id: str,
     body: UploadRequest,
     user: Annotated[CurrentUser, Depends(require_roles("Customer"))],
-    repository: ClaimRepository = Depends(get_claim_repository),
-    blob_service: BlobStorageService = Depends(get_blob_service),
+    repository: ClaimRepositoryDep,
+    blob_service: BlobStorageServiceDep,
 ) -> UploadGrant:
     claim = await get_owned_claim(claim_id, user, repository)
     documents = await repository.list_items(claim_id, "document")
@@ -108,8 +121,8 @@ async def complete_upload(
     claim_id: str,
     document_id: str,
     user: Annotated[CurrentUser, Depends(require_roles("Customer"))],
-    repository: ClaimRepository = Depends(get_claim_repository),
-    blob_service: BlobStorageService = Depends(get_blob_service),
+    repository: ClaimRepositoryDep,
+    blob_service: BlobStorageServiceDep,
 ) -> dict[str, str]:
     await get_owned_claim(claim_id, user, repository)
     documents = await repository.list_items(claim_id, "document")
@@ -132,7 +145,7 @@ async def complete_upload(
 async def submit_claim(
     claim_id: str,
     user: Annotated[CurrentUser, Depends(require_roles("Customer"))],
-    repository: ClaimRepository = Depends(get_claim_repository),
+    repository: ClaimRepositoryDep,
 ) -> dict[str, str]:
     claim = await get_owned_claim(claim_id, user, repository)
     if claim.status not in {ClaimStatus.DRAFT, ClaimStatus.UPLOADING}:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Annotated
@@ -10,7 +11,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
 
 from refundflow.config import get_settings
-
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -66,15 +66,21 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
         ) from exc
+    roles = claims.get("roles", [])
+    if not isinstance(roles, list):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token roles",
+        )
     return CurrentUser(
         user_id=str(claims.get("oid") or claims["sub"]),
         name=str(claims.get("name", "Unknown user")),
         email=str(claims.get("preferred_username", "")),
-        roles=frozenset(str(value) for value in claims.get("roles", [])),
+        roles=frozenset(str(value) for value in roles),
     )
 
 
-def require_roles(*allowed_roles: str):
+def require_roles(*allowed_roles: str) -> Callable[..., Awaitable[CurrentUser]]:
     async def authorize(user: Annotated[CurrentUser, Depends(get_current_user)]) -> CurrentUser:
         if not user.roles.intersection(allowed_roles):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")

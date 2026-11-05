@@ -12,6 +12,7 @@ from refundflow.repositories.orders import (
     OrderRepository,
 )
 
+
 @lru_cache
 def get_local_repository() -> InMemoryClaimRepository:
     return InMemoryClaimRepository()

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from azure.core.credentials_async import AsyncTokenCredential
 from azure.storage.blob import ContentSettings
-from azure.storage.blob.aio import BlobServiceClient
 
 
 class EvidenceStorageService:

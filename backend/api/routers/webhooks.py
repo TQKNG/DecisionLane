@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 import stripe
 from azure.identity import DefaultAzureCredential
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -11,15 +13,19 @@ from refundflow.domain.models import ClaimStatus
 from refundflow.repositories.claims import ClaimRepository
 from refundflow.services.email import StatusEmailService
 
-
 router = APIRouter(prefix="/v1/webhooks", tags=["webhooks"])
+
+ClaimRepositoryDep = Annotated[
+    ClaimRepository,
+    Depends(get_claim_repository),
+]
 
 
 @router.post("/stripe")
 async def stripe_webhook(
     request: Request,
-    stripe_signature: str = Header(alias="Stripe-Signature"),
-    repository: ClaimRepository = Depends(get_claim_repository),
+    stripe_signature: Annotated[str, Header(alias="Stripe-Signature")],
+    repository: ClaimRepositoryDep,
 ) -> dict[str, bool]:
     payload = await request.body()
     try:

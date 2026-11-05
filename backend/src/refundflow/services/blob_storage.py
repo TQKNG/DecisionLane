@@ -4,9 +4,8 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from azure.core.credentials_async import AsyncTokenCredential
-from azure.storage.blob import BlobSasPermissions,generate_blob_sas
+from azure.storage.blob import BlobProperties, BlobSasPermissions, generate_blob_sas
 from azure.storage.blob.aio import BlobServiceClient
-
 
 ALLOWED_CONTENT_TYPES={
     "application/pdf": ".pdf",
@@ -24,14 +23,18 @@ class BlobStorageService:
         account_name: str,
         account_url: str,
         credential: AsyncTokenCredential,
-        quarantin_container: str
+        quarantine_container: str
     )-> None:
         self._account_name = account_name
         self._credential = credential
         self._container = quarantine_container
         self._client = BlobServiceClient(account_url, credential=credential)
 
-    async def create_upload_url()-> tuple[str,str,str]:
+    async def create_upload_url(
+        self,
+        customer_id: str,
+        claim_id: str,
+        content_type: str,)-> tuple[str,str,str]:
         extension = ALLOWED_CONTENT_TYPES.get(content_type)
         if extension is None:
             raise ValueError("Only PDF, JPEG, PNG, and WebP files are allowed")
@@ -52,7 +55,7 @@ class BlobStorageService:
         url = self._client.get_blob_client(self._container, blob_name).url
         return document_id, blob_name, f"{url}?{sas}"
 
-    async def get_blob_properties(self, blob_name: str):
+    async def get_blob_properties(self, blob_name: str) -> BlobProperties:
         return await self._client.get_blob_client(
             self._container,
             blob_name,

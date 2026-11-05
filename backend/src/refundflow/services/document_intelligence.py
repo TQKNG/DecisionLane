@@ -10,6 +10,7 @@ from PIL import Image
 
 from refundflow.domain.models import ExtractedDocument, SafetyAnalysis
 
+
 def validate_file(content:bytes, content_type:str) -> int:
     if len(content) > 4*1024*1024:
         raise ValueError("File exceeds the 4MB limit")
@@ -17,7 +18,7 @@ def validate_file(content:bytes, content_type:str) -> int:
         if not content.startswith(b"%PDF"):
             raise ValueError("File content is not a PDF")
         document = pdfium.PdfDocument(content)
-        page_count = lent(document)
+        page_count = len(document)
         if page_count <1 or page_count >2:
             raise ValueError("PDF files must contain one or two pages")
         return page_count
@@ -48,7 +49,7 @@ class DocumentExtractionService:
         key_values: dict[str, str] = {}
         for pair in result.key_value_pairs or []:
             if pair.key and pair.value:
-                key_values[pair.key_content[:100]] = pair.value.content[:500]
+                key_values[pair.key.content[:100]] = pair.value.content[:500]
         return ExtractedDocument(
             document_id = document_id,
             file_name = file_name,

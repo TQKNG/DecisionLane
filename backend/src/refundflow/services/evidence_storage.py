@@ -13,7 +13,7 @@ class EvidenceStorageService:
         quarantine_container:str,
         evidence_container:str
     )-> None:
-        self._client = BlobServiceClien(account_url, credential=credential)
+        self._client = BlobServiceClient(account_url, credential=credential)
         self._quarantine = quarantine_container
         self._evidence = evidence_container
 

@@ -2,10 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routers.claims import router as claims_router
-from api.routers.uploads import router as uploads_router
 from api.routers.reviews import router as reviews_router
+from api.routers.uploads import router as uploads_router
 from api.routers.webhooks import router as webhooks_router
-
 from refundflow.config import get_settings
 from refundflow.telemetry import configure_telemetry
 

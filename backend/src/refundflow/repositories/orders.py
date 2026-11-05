@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Protocol
 
 from azure.cosmos.aio import CosmosClient
@@ -18,7 +19,7 @@ class InMemoryOrderRepository:
             id="order-1001",
             customer_id="local-customer",
             currency="CAD",
-            paid_amount="129.99",
+            paid_amount=Decimal("129.99"),
             payment_intent_id="pi_local_test",
         )
 

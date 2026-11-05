@@ -7,7 +7,7 @@ from azure.ai.contentsafety.aio import ContentSafetyClient
 from azure.ai.contentsafety.models import AnalyzeImageOptions, ImageData
 from azure.core.credentials_async import AsyncTokenCredential
 
-from refundflow.domain.models import SafetyAnalysis, SafetyDecision
+from refundflow.domain.models import SafetyAnalysis
 from refundflow.domain.safety_policy import decide_image_safety
 
 

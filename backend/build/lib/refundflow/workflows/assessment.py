@@ -15,15 +15,14 @@ from azure.identity.aio import DefaultAzureCredential
 
 from refundflow.config import Settings
 from refundflow.domain.models import (
-    AssessmentResult,
     AssessmentDraft,
+    AssessmentResult,
     CriterionStatus,
     EvidenceBundle,
     GroundedAssessmentRequest,
 )
 from refundflow.services.policy_search import PolicySearchService
 from refundflow.telemetry import get_trace_id
-
 
 PROMPT_VERSION = "refund-assessment-2026-01"
 

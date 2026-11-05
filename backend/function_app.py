@@ -1,12 +1,12 @@
 from __future__ import annotations
+
 import os
-
 from datetime import timedelta
-from uuid import uuid4
+from functools import wraps
 
-from azure.identity import DefaultAzureCredential as SyncDefaultAzureCredential
 import azure.durable_functions as df
 import azure.functions as func
+from azure.identity import DefaultAzureCredential as SyncDefaultAzureCredential
 
 from functions.services import ActivityServices
 from refundflow.domain.models import (
@@ -20,13 +20,26 @@ from refundflow.domain.models import (
     RefundClaim,
     SafetyDecision,
 )
-from refundflow.services.malware import MalwareStatus
-from refundflow.workflows.assessment import run_assessment_workflow
+from refundflow.observability import claim_span
 from refundflow.repositories.orders import CosmosOrderRepository
 from refundflow.services.email import StatusEmailService
+from refundflow.services.malware import MalwareStatus
 from refundflow.services.payments import StripeRefundService
+from refundflow.workflows.assessment import run_assessment_workflow
 
 app = df.DFApp(http_auth_level=func.AuthLevel.FUNCTION)
+
+
+def traced_activity(name: str, stage: str):
+    def decorate(activity):
+        @wraps(activity)
+        async def wrapped(activity_input):
+            with claim_span(name, activity_input["claim_id"], stage):
+                return await activity(activity_input)
+
+        return wrapped
+
+    return decorate
 
 
 @app.route(route="refund-workflows", methods=["POST"])
@@ -54,7 +67,7 @@ async def signal_approval(
     req: func.HttpRequest,
     client: df.DurableOrchestrationClient,
 ) -> func.HttpResponse:
-    instance_id = request.route_params["instance_id"]
+    instance_id = req.route_params["instance_id"]
     status = await client.get_status(instance_id)
     if status is None:
         return func.HttpResponse("Workflow not found", status_code=404)
@@ -205,6 +218,7 @@ async def load_claim_and_document(
 
 
 @app.activity_trigger(input_name="activity_input")
+@traced_activity("refundflow.check_malware_status", "malware_scanning")
 async def check_malware_status(activity_input) -> str:
     services = ActivityServices()
     try:
@@ -219,6 +233,7 @@ async def check_malware_status(activity_input) -> str:
 
 
 @app.activity_trigger(input_name="activity_input")
+@traced_activity("refundflow.reject_document", "document_rejection")
 async def reject_document(activity_input) -> None:
     services = ActivityServices()
     try:
@@ -237,6 +252,7 @@ async def reject_document(activity_input) -> None:
 
 
 @app.activity_trigger(input_name="activity_input")
+@traced_activity("refundflow.process_document", "document_processing")
 async def process_document(activity_input) -> dict[str, object]:
     services = ActivityServices()
     try:
@@ -288,6 +304,7 @@ async def process_document(activity_input) -> dict[str, object]:
 
 
 @app.activity_trigger(input_name="activity_input")
+@traced_activity("refundflow.assess_claim", "claim_assessment")
 async def assess_claim(activity_input) -> dict[str, object]:
     services = ActivityServices()
     try:
@@ -320,6 +337,7 @@ async def assess_claim(activity_input) -> dict[str, object]:
 
 
 @app.activity_trigger(input_name="activity_input")
+@traced_activity("refundflow.set_claim_status", "claim_status_update")
 async def set_claim_status(activity_input) -> None:
     services = ActivityServices()
     try:
@@ -333,6 +351,7 @@ async def set_claim_status(activity_input) -> None:
 
 
 @app.activity_trigger(input_name="activity_input")
+@traced_activity("refundflow.record_approval", "approval_recording")
 async def record_approval(activity_input) -> None:
     services = ActivityServices()
     try:
@@ -350,6 +369,7 @@ async def record_approval(activity_input) -> None:
         await services.close()
 
 @app.activity_trigger(input_name="activty_input")
+@traced_activity("refundflow.execute_refund", "refund_execution")
 async def execute_refund(activity_input: dict[str,object])-> dict[str,object]:
     services = ActivityServices()
     order_repository = CosmosOrderRepository(
@@ -389,6 +409,7 @@ async def execute_refund(activity_input: dict[str,object])-> dict[str,object]:
 
 
 @app.activity_trigger(input_name="activity_input")
+@traced_activity("refundflow.send_status_email", "status_notification")
 async def send_status_email(activity_input: dict[str,str])-> None:
     services = ActivityServices()
     try:
@@ -402,7 +423,7 @@ async def send_status_email(activity_input: dict[str,str])-> None:
             email_credential
         )
         try:
-            email_service.send(claim.customer_email, claim.id, activity_status["status"])
+            email_service.send(claim.customer_email, claim.id, activity_input["status"])
         finally:
             email_credential.close()
     finally:

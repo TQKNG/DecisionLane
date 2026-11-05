@@ -10,6 +10,7 @@ from PIL import Image
 
 from refundflow.domain.models import ExtractedDocument, SafetyAnalysis
 
+
 def validate_file(content:bytes, content_type:str) -> int:
     if len(content) > 4*1024*1024:
         raise ValueError("File exceeds the 4MB limit")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 from azure.core.credentials_async import AsyncTokenCredential
 
+
 class EmbeddingService:
     def __init__(
         self,
