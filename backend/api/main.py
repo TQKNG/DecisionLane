@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.routers.claims import router as claims_router
 from api.routers.uploads import router as uploads_router
+from api.routers.reviews import router as reviews_router
 
 from refundflow.config import get_settings
 from refundflow.telemetry import configure_telemetry
@@ -22,6 +23,7 @@ app.add_middleware(
 )
 app.include_router(claims_router)
 app.include_router(uploads_router)
+app.include_router(reviews_router)
 
 
 @app.get("/healh/live", tags=["health"])

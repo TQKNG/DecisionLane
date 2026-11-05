@@ -4184,7 +4184,7 @@ Append this route to `python/function_app.py`:
 @app.route(route="refund-workflows/{instance_id}/approvals", methods=["POST"])
 @app.durable_client_input(client_name="client")
 async def signal_approval(
-    request: func.HttpRequest,
+    req: func.HttpRequest,
     client: df.DurableOrchestrationClient,
 ) -> func.HttpResponse:
     instance_id = request.route_params["instance_id"]
@@ -4193,7 +4193,7 @@ async def signal_approval(
         return func.HttpResponse("Workflow not found", status_code=404)
     if status.runtime_status != df.OrchestrationRuntimeStatus.Running:
         return func.HttpResponse("Workflow is not waiting", status_code=409)
-    body = request.get_json()
+    body = req.get_json()
     required = {"claim_id", "reviewer_id", "reviewer_name", "decision", "comment"}
     if not required.issubset(body) or body["decision"] not in {"approve", "reject"}:
         return func.HttpResponse("Invalid approval payload", status_code=400)

@@ -44,6 +44,25 @@ async def start_refund_workflow(
     return client.create_check_status_response(req, instance_id)
 
 
+@app.route(route="refund-workflows/{instance_id}/approvals", methods=["POST"])
+@app.durable_client_input(client_name="client")
+async def signal_approval(
+    req: func.HttpRequest,
+    client: df.DurableOrchestrationClient,
+) -> func.HttpResponse:
+    instance_id = request.route_params["instance_id"]
+    status = await client.get_status(instance_id)
+    if status is None:
+        return func.HttpResponse("Workflow not found", status_code=404)
+    if status.runtime_status != df.OrchestrationRuntimeStatus.Running:
+        return func.HttpResponse("Workflow is not waiting", status_code=409)
+    body = req.get_json()
+    required = {"claim_id", "reviewer_id", "reviewer_name", "decision", "comment"}
+    if not required.issubset(body) or body["decision"] not in {"approve", "reject"}:
+        return func.HttpResponse("Invalid approval payload", status_code=400)
+    await client.raise_event(instance_id, "approval_received", body)
+    return func.HttpResponse(status_code=202)
+
 @app.orchestration_trigger(context_name="context")
 def refund_orchestrator(context: df.DurableOrchestrationContext):
     workflow_input = context.get_input()
