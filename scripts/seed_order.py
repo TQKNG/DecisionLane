@@ -5,7 +5,6 @@ import os
 from decimal import Decimal
 
 from azure.identity.aio import AzureCliCredential
-
 from refundflow.domain.models import OrderRecord
 from refundflow.repositories.orders import CosmosOrderRepository
 
