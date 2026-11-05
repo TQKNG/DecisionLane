@@ -4882,6 +4882,7 @@ It uses MSAL for Entra sign-in and sends access tokens to FastAPI.
 Run from the repository root:
 
 ```bash
+cd ..
 pnpm create next-app@latest frontend \
   --typescript \
   --eslint \
@@ -4979,6 +4980,7 @@ Create `frontend/src/lib/api.ts`:
 ```typescript
 "use client";
 
+import { useCallback } from "react";
 import { useMsal } from "@azure/msal-react";
 
 import { API_SCOPE } from "@/lib/auth";
@@ -4988,7 +4990,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL!;
 export function useApi() {
   const { instance, accounts } = useMsal();
 
-  async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const request = useCallback(async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (accounts.length === 0) throw new Error("Sign in is required");
     const token = await instance.acquireTokenSilent({
       account: accounts[0],
@@ -5008,7 +5010,7 @@ export function useApi() {
     }
     if (response.status === 204) return undefined as T;
     return response.json() as Promise<T>;
-  }
+  }, [accounts, instance]);
 
   return { request };
 }
@@ -5276,7 +5278,9 @@ export default function ClaimsPage() {
   const { request } = useApi();
   const [claims, setClaims] = useState<ClaimRow[]>([]);
   const [error, setError] = useState("");
-  useEffect(() => { request<ClaimRow[]>("/v1/claims").then(setClaims).catch((value) => setError(String(value))); }, []);
+  useEffect(() => {
+    request<ClaimRow[]>("/v1/claims").then(setClaims).catch((value) => setError(String(value)));
+  }, [request]);
   return <AppShell><h1 className="mb-8 text-3xl font-semibold">Claims</h1>{error ? <p>{error}</p> : <ClaimsTable claims={claims} />}</AppShell>;
 }
 ```
@@ -5295,7 +5299,9 @@ import { useApi } from "@/lib/api";
 export default function ReviewsPage() {
   const { request } = useApi();
   const [claims, setClaims] = useState<ClaimRow[]>([]);
-  useEffect(() => { request<ClaimRow[]>("/v1/claims?status=pending_approval").then(setClaims); }, []);
+  useEffect(() => {
+    request<ClaimRow[]>("/v1/claims?status=pending_approval").then(setClaims);
+  }, [request]);
   return <AppShell><h1 className="mb-8 text-3xl font-semibold">Review queue</h1><ClaimsTable claims={claims} reviewMode /></AppShell>;
 }
 ```
@@ -5305,7 +5311,8 @@ Create `frontend/src/app/reviews/detail/page.tsx`:
 ```tsx
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { AppShell } from "@/components/app-shell";
 import { useApi } from "@/lib/api";
@@ -5323,16 +5330,22 @@ interface ReviewDetail {
 }
 
 export default function ReviewPage() {
+  return (
+    <Suspense fallback={<AppShell><p>Loading assessment...</p></AppShell>}>
+      <ReviewContent />
+    </Suspense>
+  );
+}
+
+function ReviewContent() {
   const { request } = useApi();
-  const [claimId, setClaimId] = useState("");
+  const searchParams = useSearchParams();
+  const claimId = searchParams.get("claimId") ?? "";
   const [review, setReview] = useState<ReviewDetail | null>(null);
   const [message, setMessage] = useState("");
   useEffect(() => {
-    setClaimId(new URLSearchParams(window.location.search).get("claimId") ?? "");
-  }, []);
-  useEffect(() => {
     if (claimId) request<ReviewDetail>(`/v1/reviews/${claimId}`).then(setReview);
-  }, [claimId]);
+  }, [claimId, request]);
 
   async function decide(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -5376,28 +5389,38 @@ Create `frontend/src/app/claims/detail/page.tsx`:
 ```tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { AppShell } from "@/components/app-shell";
 import { ClaimRow } from "@/components/claims-table";
 import { useApi } from "@/lib/api";
 
 export default function ClaimDetailPage() {
+  return (
+    <Suspense fallback={<AppShell><h1 className="text-3xl font-semibold">Claim status</h1></AppShell>}>
+      <ClaimDetailContent />
+    </Suspense>
+  );
+}
+
+function ClaimDetailContent() {
   const { request } = useApi();
+  const searchParams = useSearchParams();
+  const claimId = searchParams.get("claimId");
   const [claim, setClaim] = useState<ClaimRow | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    const claimId = new URLSearchParams(window.location.search).get("claimId");
     if (!claimId) {
-      setError("Missing claim identifier");
       return;
     }
     request<ClaimRow>(`/v1/claims/${claimId}`).then(setClaim).catch((value) => setError(String(value)));
-  }, []);
+  }, [claimId, request]);
+  const displayedError = error || (!claimId ? "Missing claim identifier" : "");
   return (
     <AppShell>
       <h1 className="text-3xl font-semibold">Claim status</h1>
-      {error && <p className="mt-4 text-rose-300">{error}</p>}
+      {displayedError && <p className="mt-4 text-rose-300">{displayedError}</p>}
       {claim && <dl className="mt-8 grid max-w-2xl grid-cols-2 gap-4 rounded-2xl border border-slate-800 p-6">
         <dt className="text-slate-400">Claim ID</dt><dd className="font-mono text-sm">{claim.id}</dd>
         <dt className="text-slate-400">Order</dt><dd>{claim.order_id}</dd>
@@ -5433,7 +5456,9 @@ interface Kpis {
 export default function AdminPage() {
   const { request } = useApi();
   const [kpis, setKpis] = useState<Kpis | null>(null);
-  useEffect(() => { request<Kpis>("/v1/admin/kpis").then(setKpis); }, []);
+  useEffect(() => {
+    request<Kpis>("/v1/admin/kpis").then(setKpis);
+  }, [request]);
   const cards = kpis ? [
     ["Total claims", kpis.total_claims], ["Pending", kpis.pending_approval],
     ["Refunded", kpis.refunded], ["Rejected", kpis.rejected],
