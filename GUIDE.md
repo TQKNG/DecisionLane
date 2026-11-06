@@ -6188,8 +6188,8 @@ The only deployment token stored in GitHub is the scoped Static Web Apps token.
 Set the repository identity:
 
 ```bash
-export GITHUB_OWNER='<github-owner>'
-export GITHUB_REPOSITORY='refund-intelligence-platform'
+export GITHUB_OWNER='TQKNG'
+export GITHUB_REPOSITORY='PennyWorth'
 ```
 
 Create an Entra application and service principal:
@@ -6252,7 +6252,7 @@ export FOUNDRY_PROJECT_ID=$(az cognitiveservices account project show \
 az role assignment create \
   --assignee-object-id "$GITHUB_PRINCIPAL_ID" \
   --assignee-principal-type ServicePrincipal \
-  --role 'Azure AI User' \
+  --role 'Foundry User' \
   --scope "$FOUNDRY_PROJECT_ID"
 
 az role assignment create \
@@ -6282,6 +6282,7 @@ gh variable set STORAGE_ACCOUNT_URL --body "https://${STORAGE_ACCOUNT_NAME}.blob
 gh variable set CONTENT_SAFETY_ENDPOINT --body "$(jq -r '.contentSafetyEndpoint.value' /tmp/refundflow-outputs.json)"
 gh variable set DOCUMENT_INTELLIGENCE_ENDPOINT --body "$(jq -r '.documentIntelligenceEndpoint.value' /tmp/refundflow-outputs.json)"
 gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body "$STATIC_WEB_TOKEN"
+gh secret set API_BASE_URL --body "$API_BASE_URL"
 ```
 
 ### 21.2 Create pull-request CI
@@ -6322,7 +6323,7 @@ jobs:
         working-directory: python
         run: pytest --cov=refundflow --cov-report=term-missing --cov-fail-under=80
       - name: Dataset gates
-        run: PYTHONPATH=python/src python evals/run_local_gates.py
+        run: PYTHONPATH=backend/src python evals/run_local_gates.py
 
   frontend:
     runs-on: ubuntu-latest
@@ -6346,7 +6347,7 @@ jobs:
           NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ vars.SPA_CLIENT_ID }}
           NEXT_PUBLIC_API_SCOPE: api://${{ vars.API_CLIENT_ID }}/access_as_user
-          NEXT_PUBLIC_API_BASE_URL: https://placeholder.invalid
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.API_BASE_URL }}
 
   infrastructure:
     runs-on: ubuntu-latest
@@ -6368,9 +6369,7 @@ name: Deploy development
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-
+  
 permissions:
   id-token: write
   contents: read
@@ -6636,15 +6635,15 @@ Commit the delivery system:
 
 ```bash
 git add .github infra python frontend
-git commit -m "Automate validation and Azure deployment"
+git commit -m "Add workflow Automate validation and Azure deployment"
 ```
 
-## 22. Enforce the USD 50 monthly cost boundary
+## 22. Enforce the USD 50 monthly cost boundary (Implement Later)
 
 Azure budgets are alerts, not circuit breakers.
 Use service caps and application quotas together.
 
-### 22.1 Add application quotas
+### 22.1 Add application quotas (Implement Later)
 
 Create `python/src/refundflow/services/quotas.py`:
 
