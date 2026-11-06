@@ -1,0 +1,187 @@
+name: Deploy development
+
+on:
+  workflow_dispatch:
+  
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: refundflow-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/setup-bicep@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Deploy infrastructure
+        run: |
+          az deployment group create \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --template-file infra/main.bicep \
+            --parameters infra/dev.bicepparam \
+            --name "refundflow-${GITHUB_SHA::7}"
+
+      - name: Read deployment outputs
+        run: |
+          az deployment group show \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "refundflow-${GITHUB_SHA::7}" \
+            --query properties.outputs -o json > outputs.json
+          echo "ACR_NAME=$(jq -r '.acrName.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "ACR_SERVER=$(jq -r '.acrLoginServer.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "API_NAME=$(jq -r '.apiName.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "API_URL=$(jq -r '.apiUrl.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "FUNCTION_NAME=$(jq -r '.functionAppName.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "STATIC_NAME=$(jq -r '.staticWebAppName.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "KEY_VAULT_NAME=$(jq -r '.keyVaultName.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "STORAGE_NAME=$(jq -r '.storageAccountName.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "COSMOS_ENDPOINT=$(jq -r '.cosmosEndpoint.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "CONTENT_SAFETY_ENDPOINT=$(jq -r '.contentSafetyEndpoint.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "DOCUMENT_INTELLIGENCE_ENDPOINT=$(jq -r '.documentIntelligenceEndpoint.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "ACS_ENDPOINT=$(jq -r '.communicationServiceEndpoint.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "EMAIL_SERVICE_NAME=$(jq -r '.emailServiceName.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "APPINSIGHTS_CONNECTION_STRING=$(jq -r '.appInsightsConnectionString.value' outputs.json)" >> "$GITHUB_ENV"
+
+      - name: Build API image
+        run: az acr build --registry "$ACR_NAME" --image "refundflow-api:${GITHUB_SHA}" python
+
+      - name: Deploy API image
+        run: |
+          az containerapp update \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "$API_NAME" \
+            --image "${ACR_SERVER}/refundflow-api:${GITHUB_SHA}"
+
+      - name: Install Functions tools
+        run: npm install --global azure-functions-core-tools@4 --unsafe-perm true
+
+      - name: Deploy Functions
+        working-directory: python
+        run: func azure functionapp publish "$FUNCTION_NAME" --python
+
+      - name: Restore runtime configuration
+        run: |
+          az extension add --name communication --upgrade
+          SEARCH_SECRET_URI=$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name azure-search-query-key --query id -o tsv)
+          STRIPE_SECRET_URI=$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name stripe-secret-key --query id -o tsv)
+          STRIPE_WEBHOOK_SECRET_URI=$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name stripe-webhook-secret --query id -o tsv)
+          SENDER_DOMAIN=$(az communication email domain show \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --email-service-name "$EMAIL_SERVICE_NAME" \
+            --domain-name AzureManagedDomain \
+            --query properties.fromSenderDomain -o tsv)
+          az functionapp config appsettings set \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "$FUNCTION_NAME" \
+            --settings \
+              "COSMOS_ENDPOINT=${COSMOS_ENDPOINT}" \
+              "COSMOS_DATABASE=refundflow" \
+              "STORAGE_ACCOUNT_NAME=${STORAGE_NAME}" \
+              "STORAGE_ACCOUNT_URL=https://${STORAGE_NAME}.blob.core.windows.net" \
+              "CONTENT_SAFETY_ENDPOINT=${CONTENT_SAFETY_ENDPOINT}" \
+              "DOCUMENT_INTELLIGENCE_ENDPOINT=${DOCUMENT_INTELLIGENCE_ENDPOINT}" \
+              "AZURE_SEARCH_ENDPOINT=${{ vars.AZURE_SEARCH_ENDPOINT }}" \
+              "AZURE_SEARCH_INDEX=refundflow-policies-v1" \
+              "AZURE_SEARCH_QUERY_KEY=@Microsoft.KeyVault(SecretUri=${SEARCH_SECRET_URI})" \
+              "FOUNDRY_PROJECT_ENDPOINT=${{ vars.FOUNDRY_PROJECT_ENDPOINT }}" \
+              "FOUNDRY_RESOURCE_ENDPOINT=${{ vars.FOUNDRY_RESOURCE_ENDPOINT }}" \
+              "FOUNDRY_MODEL=gpt-5.6-luna" \
+              "FOUNDRY_EMBEDDING_MODEL=text-embedding-3-small" \
+              "STRIPE_SECRET_KEY=@Microsoft.KeyVault(SecretUri=${STRIPE_SECRET_URI})" \
+              "ACS_EMAIL_ENDPOINT=${ACS_ENDPOINT}" \
+              "ACS_SENDER_ADDRESS=DoNotReply@${SENDER_DOMAIN}" \
+              "APPLICATIONINSIGHTS_CONNECTION_STRING=${APPINSIGHTS_CONNECTION_STRING}" \
+              "ENABLE_INSTRUMENTATION=true" \
+              "ENABLE_SENSITIVE_DATA=false"
+          FUNCTION_KEY=$(az functionapp keys list \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "$FUNCTION_NAME" \
+            --query functionKeys.default -o tsv)
+          az containerapp secret set \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "$API_NAME" \
+            --secrets \
+              "search-query-key=keyvaultref:${SEARCH_SECRET_URI},identityref:system" \
+              "stripe-webhook-secret=keyvaultref:${STRIPE_WEBHOOK_SECRET_URI},identityref:system" \
+              "function-key=${FUNCTION_KEY}"
+          az containerapp update \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "$API_NAME" \
+            --set-env-vars \
+              "APP_ENV=dev" \
+              "COSMOS_ENDPOINT=${COSMOS_ENDPOINT}" \
+              "COSMOS_DATABASE=refundflow" \
+              "STORAGE_ACCOUNT_NAME=${STORAGE_NAME}" \
+              "STORAGE_ACCOUNT_URL=https://${STORAGE_NAME}.blob.core.windows.net" \
+              "CONTENT_SAFETY_ENDPOINT=${CONTENT_SAFETY_ENDPOINT}" \
+              "DOCUMENT_INTELLIGENCE_ENDPOINT=${DOCUMENT_INTELLIGENCE_ENDPOINT}" \
+              "AZURE_SEARCH_ENDPOINT=${{ vars.AZURE_SEARCH_ENDPOINT }}" \
+              "AZURE_SEARCH_INDEX=refundflow-policies-v1" \
+              "AZURE_SEARCH_QUERY_KEY=secretref:search-query-key" \
+              "FOUNDRY_PROJECT_ENDPOINT=${{ vars.FOUNDRY_PROJECT_ENDPOINT }}" \
+              "FOUNDRY_RESOURCE_ENDPOINT=${{ vars.FOUNDRY_RESOURCE_ENDPOINT }}" \
+              "FOUNDRY_MODEL=gpt-5.6-luna" \
+              "FOUNDRY_EMBEDDING_MODEL=text-embedding-3-small" \
+              "CUSTOMER_TENANT_ID=${{ vars.AZURE_TENANT_ID }}" \
+              "CUSTOMER_API_AUDIENCE=${{ vars.API_CLIENT_ID }}" \
+              "STAFF_TENANT_ID=${{ vars.AZURE_TENANT_ID }}" \
+              "STAFF_API_AUDIENCE=${{ vars.API_CLIENT_ID }}" \
+              "FUNCTION_BASE_URL=https://${FUNCTION_NAME}.azurewebsites.net/api" \
+              "FUNCTION_KEY=secretref:function-key" \
+              "STRIPE_WEBHOOK_SECRET=secretref:stripe-webhook-secret" \
+              "ACS_EMAIL_ENDPOINT=${ACS_ENDPOINT}" \
+              "ACS_SENDER_ADDRESS=DoNotReply@${SENDER_DOMAIN}" \
+              "APPLICATIONINSIGHTS_CONNECTION_STRING=${APPINSIGHTS_CONNECTION_STRING}" \
+              "ENABLE_INSTRUMENTATION=true" \
+              "ENABLE_SENSITIVE_DATA=false" \
+              "AZURE_TRACING_GEN_AI_CONTENT_RECORDING_ENABLED=false"
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ vars.SPA_CLIENT_ID }}
+          NEXT_PUBLIC_API_SCOPE: api://${{ vars.API_CLIENT_ID }}/access_as_user
+          NEXT_PUBLIC_API_BASE_URL: ${{ env.API_URL }}
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Deploy frontend
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: upload
+          app_location: frontend/out
+          output_location: ''
+          skip_app_build: true
+
+      - name: Verify health
+        run: |
+          for attempt in {1..12}; do
+            if curl --fail --silent "${API_URL}/health/ready"; then exit 0; fi
+            sleep 10
+          done
+          exit 1

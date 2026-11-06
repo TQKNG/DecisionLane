@@ -1,0 +1,64 @@
+name: Weekly Foundry evaluation
+
+on:
+  schedule:
+    - cron: '20 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      case_count:
+        description: Number of cases, maximum 200
+        required: true
+        default: '5'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        working-directory: python
+        run: python -m pip install --pre -e '.[dev]'
+      - name: Run evaluation
+        working-directory: python
+        env:
+          APP_ENV: dev
+          EVAL_CASE_COUNT: ${{ inputs.case_count || '5' }}
+          EVAL_OFFSET: ${{ github.run_number }}
+          FOUNDRY_PROJECT_ENDPOINT: ${{ vars.FOUNDRY_PROJECT_ENDPOINT }}
+          FOUNDRY_RESOURCE_ENDPOINT: ${{ vars.FOUNDRY_RESOURCE_ENDPOINT }}
+          FOUNDRY_MODEL: gpt-5.6-luna
+          FOUNDRY_EVALUATION_MODEL: gpt-5.6-luna
+          FOUNDRY_EMBEDDING_MODEL: text-embedding-3-small
+          AZURE_SEARCH_ENDPOINT: ${{ vars.AZURE_SEARCH_ENDPOINT }}
+          AZURE_SEARCH_INDEX: refundflow-policies-v1
+          COSMOS_ENDPOINT: ${{ vars.COSMOS_ENDPOINT }}
+          STORAGE_ACCOUNT_URL: ${{ vars.STORAGE_ACCOUNT_URL }}
+          CONTENT_SAFETY_ENDPOINT: ${{ vars.CONTENT_SAFETY_ENDPOINT }}
+          DOCUMENT_INTELLIGENCE_ENDPOINT: ${{ vars.DOCUMENT_INTELLIGENCE_ENDPOINT }}
+        run: |
+          if [ "$EVAL_CASE_COUNT" -gt 200 ]; then exit 2; fi
+          AZURE_SEARCH_QUERY_KEY=$(az keyvault secret show \
+            --vault-name "${{ vars.KEY_VAULT_NAME }}" \
+            --name azure-search-query-key \
+            --query value -o tsv)
+          echo "::add-mask::${AZURE_SEARCH_QUERY_KEY}"
+          export AZURE_SEARCH_QUERY_KEY
+          PYTHONPATH=src:. python ../evals/run_foundry_eval.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foundry-evaluation-${{ github.run_number }}
+          path: evals/results/*.json
