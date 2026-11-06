@@ -35,7 +35,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         if: inputs.deploy_target != 'backend'
         with:
-          version: 9
+          version: 11.21.0
       - uses: actions/setup-node@v4
         if: inputs.deploy_target != 'backend'
         with:
@@ -182,7 +182,7 @@ jobs:
           NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ vars.SPA_CLIENT_ID }}
           NEXT_PUBLIC_API_SCOPE: api://${{ vars.API_CLIENT_ID }}/access_as_user
-          NEXT_PUBLIC_API_BASE_URL: ${{ vars.API_URL }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ env.API_URL }}
         run: |
           pnpm install --frozen-lockfile
           pnpm build
