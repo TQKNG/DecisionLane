@@ -4,10 +4,29 @@ import pytest
 
 from refundflow.domain.models import (
     AssessmentCriterion,
+    AssessmentDraft,
     AssessmentResult,
     CriterionStatus,
     PolicyCitation,
 )
+
+
+def test_assessment_draft_requires_numeric_refund_amount() -> None:
+    schema = AssessmentDraft.model_json_schema()
+    amount_schema = schema["properties"]["proposed_refund_amount"]
+    assert amount_schema["type"] == "number"
+
+    with pytest.raises(ValueError):
+        AssessmentDraft.model_validate(
+            {
+                "eligible": True,
+                "proposed_refund_amount": "19.99 CAD",
+                "confidence": 0.9,
+                "requires_two_reviewers": False,
+                "summary": "Evidence supports the request.",
+                "criteria": [],
+            }
+        )
 
 
 def make_assessment(amount: str) -> AssessmentResult:

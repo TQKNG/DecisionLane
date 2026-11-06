@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 from typing import Never
 
 from agent_framework import (
@@ -83,12 +84,13 @@ class AssessmentExecutor(Executor):
     def __init__(self, settings: Settings) -> None:
         super().__init__(id="assess_claim")
         self._model_deployment = settings.foundry_model
+        self._credential = DefaultAzureCredential()
         self._agent = Agent(
             name="RefundAssessmentAgent",
             client=FoundryChatClient(
                 project_endpoint=settings.foundry_project_endpoint,
                 model=settings.foundry_model,
-                credential=DefaultAzureCredential()
+                credential=self._credential,
             ),
             instructions=(
                 "You assess refund evidence against only the supplied policy passages. "
@@ -97,6 +99,8 @@ class AssessmentExecutor(Executor):
                 "amount correctness, and policy eligibility. "
                 "Every policy assertion must cite a supplied chunk_id. "
                 "Use REVIEW when evidence is ambiguous. "
+                "Return proposed_refund_amount as a non-negative number in the claim currency, "
+                "without a currency code or symbol. "
                 "Never approve a claim or execute a refund."
             ),
         )
@@ -108,10 +112,25 @@ class AssessmentExecutor(Executor):
         ctx: WorkflowContext[AssessmentResult],
     ) -> None:
         prompt = json.dumps(request.model_dump(mode="json"), ensure_ascii=False)
-        response = await self._agent.run(prompt)
+        try:
+            response = await self._agent.run(
+                prompt,
+                options={"response_format": AssessmentDraft},
+            )
+        finally:
+            try:
+                await self._agent.close()
+            finally:
+                await self._credential.close()
+        if response.value is None:
+            raise ValueError("Assessment agent returned no structured assessment")
         draft = AssessmentDraft.model_validate(response.value)
+        draft_data = draft.model_dump()
+        draft_data["proposed_refund_amount"] = Decimal(
+            str(draft.proposed_refund_amount)
+        )
         assessment = AssessmentResult(
-            **draft.model_dump(),
+            **draft_data,
             claim_id=request.evidence.claim.id,
             model_deployment=self._model_deployment,
             prompt_version=PROMPT_VERSION,

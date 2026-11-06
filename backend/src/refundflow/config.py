@@ -1,12 +1,15 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+ENV_FILE = BACKEND_DIR / ".env"
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file =(".env","python/.env"),
+        env_file=ENV_FILE,
         env_file_encoding="utf-8",
         extra= "ignore"
     )
@@ -33,7 +36,7 @@ class Settings(BaseSettings):
     foundry_resource_endpoint:str="" 
     foundry_model:str = "gpt-5.6-luna"
     foundry_escalation_model:str = "gpt-5.6-sol"
-    foundry_evaluation_model:str = "gpt-5.6-luna"
+    foundry_evaluation_model:str = "gpt-4.1-mini"
     foundry_embedding_model:str = "text-embedding-3-small"
 
     customer_tenant_id: str = ""

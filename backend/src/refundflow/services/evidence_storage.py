@@ -32,4 +32,7 @@ class EvidenceStorageService:
             content_settings=ContentSettings(content_type=content_type)
         )
         await self._client.get_blob_client(self._quarantine, blob_name).delete_blob()
+
+    async def close(self) -> None:
+        await self._client.close()
         

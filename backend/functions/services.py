@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 from azure.identity.aio import DefaultAzureCredential
 
 from refundflow.config import get_settings
@@ -52,3 +54,25 @@ class ActivityServices:
             settings.azure_search_query_key,
             embedding_service
         )
+
+    async def close(self) -> None:
+        errors: list[Exception] = []
+        close_operations: list[Callable[[], Awaitable[None]]] = [
+            self.policy_search.close,
+            self.evidence_storage.close,
+            self.malware.close,
+            self.content_safety.close,
+            self.extraction.close,
+            self.repository.close,
+        ]
+        for close in close_operations:
+            try:
+                await close()
+            except Exception as exc:
+                errors.append(exc)
+        try:
+            await self.credential.close()
+        except Exception as exc:
+            errors.append(exc)
+        if errors:
+            raise ExceptionGroup("Failed to close activity service clients", errors)

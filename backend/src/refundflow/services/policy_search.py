@@ -27,7 +27,7 @@ class PolicySearchService:
         vector = (await self._embedding_service.embed([query]))[0]
         vector_query = VectorizedQuery(
             vector=vector,
-            k_nearest_neighbors=top,
+            k=top,
             fields="content_vector"
         )
         results = await self._client.search(
@@ -55,5 +55,5 @@ class PolicySearchService:
             )
         return citations
 
-        async def close(self) -> None:
-            await self._client.close()
+    async def close(self) -> None:
+        await self._client.close()

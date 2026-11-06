@@ -96,7 +96,7 @@ class AssessmentCriterion(BaseModel):
 
 class AssessmentDraft(BaseModel):
     eligible: bool
-    proposed_refund_amount: Decimal = Field(ge=0)
+    proposed_refund_amount: float = Field(ge=0)
     confidence: float = Field(ge=0, le=1)
     requires_two_reviewers: bool
     summary: str
@@ -152,4 +152,3 @@ class OrderRecord(BaseModel):
     currency: str
     paid_amount: Decimal
     payment_intent_id: str
-
