@@ -27,7 +27,7 @@ app.include_router(reviews_router)
 app.include_router(webhooks_router)
 
 
-@app.get("/healh/live", tags=["health"])
+@app.get("/health/live", tags=["health"])
 async def live()-> dict[str,str]:
     return {"status": "ok"}
 
