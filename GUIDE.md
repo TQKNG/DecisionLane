@@ -550,9 +550,14 @@ Create `python/src/refundflow/config.py`:
 ```python
 from collections.abc import AsyncIterator
 from functools import lru_cache
+from pathlib import Path
+
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+ENV_FILE = BACKEND_DIR / ".env"
 
 
 class Settings(BaseSettings):
@@ -584,7 +589,7 @@ class Settings(BaseSettings):
     foundry_resource_endpoint: str = ""
     foundry_model: str = "gpt-5.6-luna"
     foundry_escalation_model: str = "gpt-5.6-sol"
-    foundry_evaluation_model: str = "gpt-5.6-luna"
+    foundry_evaluation_model: str = "gpt-4.1-mini"
     foundry_embedding_model: str = "text-embedding-3-small"
 
     customer_tenant_id: str = ""
@@ -2582,6 +2587,7 @@ Create `python/api/auth.py`:
 ```python
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Annotated
@@ -2648,15 +2654,21 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
         ) from exc
+    roles = claims.get("roles", [])
+    if not isinstance(roles, list):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token roles",
+        )
     return CurrentUser(
         user_id=str(claims.get("oid") or claims["sub"]),
         name=str(claims.get("name", "Unknown user")),
         email=str(claims.get("preferred_username", "")),
-        roles=frozenset(str(value) for value in claims.get("roles", [])),
+        roles=frozenset(str(value) for value in roles),
     )
 
 
-def require_roles(*allowed_roles: str):
+def require_roles(*allowed_roles: str) -> Callable[..., Awaitable[CurrentUser]]:
     async def authorize(user: Annotated[CurrentUser, Depends(get_current_user)]) -> CurrentUser:
         if not user.roles.intersection(allowed_roles):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
@@ -2755,7 +2767,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from azure.core.credentials_async import AsyncTokenCredential
-from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+from azure.storage.blob import BlobProperties, BlobSasPermissions, generate_blob_sas
 from azure.storage.blob.aio import BlobServiceClient
 
 
@@ -2808,7 +2820,7 @@ class BlobStorageService:
         url = self._client.get_blob_client(self._container, blob_name).url
         return document_id, blob_name, f"{url}?{sas}"
 
-    async def get_blob_properties(self, blob_name: str):
+    async def get_blob_properties(self, blob_name: str) -> BlobProperties:
         return await self._client.get_blob_client(
             self._container,
             blob_name,
@@ -2839,6 +2851,7 @@ from refundflow.domain.models import (
     ClaimAggregateItem,
     ClaimDocument,
     ClaimStatus,
+    RefundClaim,
 )
 from refundflow.repositories.claims import ClaimRepository
 from refundflow.services.blob_storage import (
@@ -2849,6 +2862,11 @@ from refundflow.services.blob_storage import (
 
 
 router = APIRouter(prefix="/v1/claims", tags=["uploads"])
+
+ClaimRepositoryDep = Annotated[
+    ClaimRepository,
+    Depends(get_claim_repository),
+]
 
 
 class UploadRequest(BaseModel):
@@ -2874,11 +2892,17 @@ def get_blob_service() -> BlobStorageService:
     )
 
 
+BlobStorageServiceDep = Annotated[
+    BlobStorageService,
+    Depends(get_blob_service),
+]
+
+
 async def get_owned_claim(
     claim_id: str,
     user: CurrentUser,
     repository: ClaimRepository,
-):
+) -> RefundClaim:
     claim = await repository.get_claim(claim_id)
     if not claim or claim.customer_id != user.user_id:
         raise HTTPException(status_code=404, detail="Claim not found")
@@ -2890,8 +2914,8 @@ async def request_upload(
     claim_id: str,
     body: UploadRequest,
     user: Annotated[CurrentUser, Depends(require_roles("Customer"))],
-    repository: ClaimRepository = Depends(get_claim_repository),
-    blob_service: BlobStorageService = Depends(get_blob_service),
+    repository: ClaimRepositoryDep,
+    blob_service: BlobStorageServiceDep,
 ) -> UploadGrant:
     claim = await get_owned_claim(claim_id, user, repository)
     documents = await repository.list_items(claim_id, "document")
@@ -2937,8 +2961,8 @@ async def complete_upload(
     claim_id: str,
     document_id: str,
     user: Annotated[CurrentUser, Depends(require_roles("Customer"))],
-    repository: ClaimRepository = Depends(get_claim_repository),
-    blob_service: BlobStorageService = Depends(get_blob_service),
+    repository: ClaimRepositoryDep,
+    blob_service: BlobStorageServiceDep,
 ) -> dict[str, str]:
     await get_owned_claim(claim_id, user, repository)
     documents = await repository.list_items(claim_id, "document")
@@ -2961,7 +2985,7 @@ async def complete_upload(
 async def submit_claim(
     claim_id: str,
     user: Annotated[CurrentUser, Depends(require_roles("Customer"))],
-    repository: ClaimRepository = Depends(get_claim_repository),
+    repository: ClaimRepositoryDep,
 ) -> dict[str, str]:
     claim = await get_owned_claim(claim_id, user, repository)
     if claim.status not in {ClaimStatus.DRAFT, ClaimStatus.UPLOADING}:
@@ -3306,6 +3330,7 @@ from typing import Never
 from agent_framework import (
     Agent,
     Executor,
+    Workflow,
     WorkflowBuilder,
     WorkflowContext,
     handler,
@@ -3389,7 +3414,6 @@ class AssessmentExecutor(Executor):
                 project_endpoint=settings.foundry_project_endpoint,
                 model=settings.foundry_model,
                 credential=DefaultAzureCredential(),
-                default_options={"response_format": AssessmentDraft},
             ),
             instructions=(
                 "You assess refund evidence against only the supplied policy passages. "
@@ -3446,28 +3470,21 @@ class AssessmentGuardExecutor(Executor):
 def build_assessment_workflow(
     settings: Settings,
     policy_search: PolicySearchService,
-):
+) -> Workflow:
+    validate_evidence = EvidenceValidationExecutor()
+    retrieve_policy = PolicyRetrievalExecutor(policy_search)
+    assess_claim = AssessmentExecutor(settings)
+    guard_assessment = AssessmentGuardExecutor()
     return (
-        WorkflowBuilder()
-        .register_executor(EvidenceValidationExecutor, name="validate_evidence")
-        .register_executor(
-            lambda: PolicyRetrievalExecutor(policy_search),
-            name="retrieve_policy",
-        )
-        .register_executor(
-            lambda: AssessmentExecutor(settings),
-            name="assess_claim",
-        )
-        .register_executor(AssessmentGuardExecutor, name="guard_assessment")
+        WorkflowBuilder(start_executor=validate_evidence)
         .add_chain(
             [
-                "validate_evidence",
-                "retrieve_policy",
-                "assess_claim",
-                "guard_assessment",
+                validate_evidence,
+                retrieve_policy,
+                assess_claim,
+                guard_assessment,
             ]
         )
-        .set_start_executor("validate_evidence")
         .build()
     )
 
@@ -4227,6 +4244,11 @@ from refundflow.repositories.claims import ClaimRepository
 
 router = APIRouter(prefix="/v1", tags=["reviews"])
 
+ClaimRepositoryDep = Annotated[
+    ClaimRepository,
+    Depends(get_claim_repository),
+]
+
 
 class ReviewDetail(BaseModel):
     claim: RefundClaim
@@ -4246,7 +4268,7 @@ async def list_claims(
         Depends(require_roles("Customer", "Reviewer", "Admin")),
     ],
     requested_status: str | None = Query(default=None, alias="status"),
-    repository: ClaimRepository = Depends(get_claim_repository),
+    repository: ClaimRepositoryDep,
 ) -> list[RefundClaim]:
     customer_id = None
     if "Customer" in user.roles and not user.roles.intersection({"Reviewer", "Admin"}):
@@ -4258,7 +4280,7 @@ async def list_claims(
 async def get_review(
     claim_id: str,
     _: Annotated[CurrentUser, Depends(require_roles("Reviewer", "Admin"))],
-    repository: ClaimRepository = Depends(get_claim_repository),
+    repository: ClaimRepositoryDep,
 ) -> ReviewDetail:
     claim = await repository.get_claim(claim_id)
     if claim is None:
@@ -4279,7 +4301,7 @@ async def decide_review(
     claim_id: str,
     body: ApprovalRequest,
     user: Annotated[CurrentUser, Depends(require_roles("Reviewer", "Admin"))],
-    repository: ClaimRepository = Depends(get_claim_repository),
+    repository: ClaimRepositoryDep,
 ) -> dict[str, str]:
     if body.decision not in {"approve", "reject"}:
         raise HTTPException(status_code=400, detail="Decision must be approve or reject")
@@ -4317,7 +4339,7 @@ async def decide_review(
 @router.get("/admin/kpis")
 async def get_admin_kpis(
     _: Annotated[CurrentUser, Depends(require_roles("Admin"))],
-    repository: ClaimRepository = Depends(get_claim_repository),
+    repository: ClaimRepositoryDep,
 ) -> dict[str, object]:
     claims = await repository.list_claims()
     counts = Counter(claim.status.value for claim in claims)
@@ -4366,6 +4388,7 @@ Create `python/src/refundflow/repositories/orders.py`:
 ```python
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Protocol
 
 from azure.cosmos.aio import CosmosClient
@@ -4384,7 +4407,7 @@ class InMemoryOrderRepository:
             id="order-1001",
             customer_id="local-customer",
             currency="CAD",
-            paid_amount="129.99",
+            paid_amount=Decimal("129.99"),
             payment_intent_id="pi_local_test",
         )
 
@@ -4533,8 +4556,21 @@ async def get_order_repository() -> AsyncIterator[OrderRepository]:
 Add these imports to `python/api/routers/claims.py`:
 
 ```python
-from api.dependencies import get_order_repository
+from typing import Annotated
+
+from api.dependencies import get_claim_repository, get_order_repository
+from refundflow.repositories.claims import ClaimRepository
 from refundflow.repositories.orders import OrderRepository
+
+ClaimRepositoryDep = Annotated[
+    ClaimRepository,
+    Depends(get_claim_repository),
+]
+
+OrderRepositoryDep = Annotated[
+    OrderRepository,
+    Depends(get_order_repository),
+]
 ```
 
 Add the order repository parameter to `create_claim` and place the validation before constructing `RefundClaim`:
@@ -4543,8 +4579,8 @@ Add the order repository parameter to `create_claim` and place the validation be
 async def create_claim(
     body: CreateClaimRequest,
     user: Annotated[CurrentUser, Depends(require_roles("Customer"))],
-    repository: ClaimRepository = Depends(get_claim_repository),
-    order_repository: OrderRepository = Depends(get_order_repository),
+    repository: ClaimRepositoryDep,
+    order_repository: OrderRepositoryDep,
 ) -> RefundClaim:
     order = await order_repository.get_order(user.user_id, body.order_id)
     if order is None:
@@ -4785,6 +4821,8 @@ Create `python/api/routers/webhooks.py`:
 ```python
 from __future__ import annotations
 
+from typing import Annotated
+
 import stripe
 from azure.identity import DefaultAzureCredential
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -4799,12 +4837,17 @@ from refundflow.services.email import StatusEmailService
 
 router = APIRouter(prefix="/v1/webhooks", tags=["webhooks"])
 
+ClaimRepositoryDep = Annotated[
+    ClaimRepository,
+    Depends(get_claim_repository),
+]
+
 
 @router.post("/stripe")
 async def stripe_webhook(
     request: Request,
-    stripe_signature: str = Header(alias="Stripe-Signature"),
-    repository: ClaimRepository = Depends(get_claim_repository),
+    stripe_signature: Annotated[str, Header(alias="Stripe-Signature")],
+    repository: ClaimRepositoryDep,
 ) -> dict[str, bool]:
     payload = await request.body()
     try:
@@ -5509,6 +5552,8 @@ Do not create a guessed connection JSON from an older Azure AI Studio API versio
 
 Confirm the Application Insights resource:
 
+Make sure install application insight extension in the CLI
+
 ```bash
 export APP_INSIGHTS_NAME=$(jq -r '.appInsightsName.value' /tmp/refundflow-outputs.json)
 az monitor app-insights component show \
@@ -5542,13 +5587,30 @@ def claim_span(name: str, claim_id: str, stage: str) -> Iterator[None]:
         yield
 ```
 
-Wrap each activity body with `claim_span`, for example:
+Wrap each activity with a decorator that opens a claim span:
 
 ```python
+from functools import wraps
+
 from refundflow.observability import claim_span
 
-with claim_span("refundflow.process_document", activity_input["claim_id"], "document_processing"):
-    result = await services.content_safety.analyze(content, document.content_type)
+
+def traced_activity(name: str, stage: str):
+    def decorate(activity):
+        @wraps(activity)
+        async def wrapped(activity_input):
+            with claim_span(name, activity_input["claim_id"], stage):
+                return await activity(activity_input)
+
+        return wrapped
+
+    return decorate
+
+
+@app.activity_trigger(input_name="activity_input")
+@traced_activity("refundflow.process_document", "document_processing")
+async def process_document(activity_input):
+    ...
 ```
 
 Record identifiers, statuses, latency, model deployment, prompt version, and policy version.
@@ -5695,7 +5757,7 @@ if __name__ == "__main__":
 Run this on every pull request because it has no model cost:
 
 ```bash
-PYTHONPATH=python/src python evals/run_local_gates.py
+python3.11 evals/run_local_gates.py
 ```
 
 ### 19.3 Run a budgeted Foundry evaluation
@@ -5712,14 +5774,14 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
-from agent_framework import evaluate_workflow
-from agent_framework.foundry import FoundryChatClient
-from agent_framework.foundry import FoundryEvals
+from agent_framework import EvalItem, Message
+from agent_framework.foundry import FoundryChatClient, FoundryEvals
 from azure.ai.projects.aio import AIProjectClient
 from azure.identity.aio import DefaultAzureCredential
-
+from functions.services import ActivityServices
 from refundflow.config import get_settings
 from refundflow.domain.models import (
+    AssessmentResult,
     ClaimType,
     EvidenceBundle,
     ExtractedDocument,
@@ -5727,8 +5789,38 @@ from refundflow.domain.models import (
     SafetyAnalysis,
     SafetyDecision,
 )
-from functions.services import ActivityServices
 from refundflow.workflows.assessment import build_assessment_workflow
+
+
+def make_policy_query(evidence: EvidenceBundle) -> str:
+    claim = evidence.claim
+    return (
+        f"Refund requirements for {claim.claim_type.value}. "
+        f"Requested amount {claim.requested_amount} {claim.currency}. "
+        f"Reason: {claim.reason}"
+    )
+
+
+def make_eval_item(
+    evidence: EvidenceBundle,
+    assessment: AssessmentResult,
+    policy_context: str,
+) -> EvalItem:
+    claim = evidence.claim
+    query = (
+        f"Assess refund claim {claim.id} for {claim.claim_type.value}. "
+        f"Requested amount: {claim.requested_amount} {claim.currency}. "
+        f"Reason: {claim.reason}\n"
+        f"Evidence: {' '.join(document.text for document in evidence.documents)}"
+    )
+    response = assessment.model_dump_json(indent=2)
+    return EvalItem(
+        conversation=[
+            Message("user", [query]),
+            Message("assistant", [response]),
+        ],
+        context=policy_context,
+    )
 
 
 def make_evidence(row: dict[str, object]) -> EvidenceBundle:
@@ -5776,53 +5868,93 @@ async def main() -> None:
         ],
     )
     summaries = []
+    failures = []
     try:
         for row in selected:
-            workflow = build_assessment_workflow(settings, services.policy_search)
-            workflow_result = await workflow.run(make_evidence(row))
-            results = await evaluate_workflow(
-                workflow=workflow,
-                workflow_result=workflow_result,
-                evaluators=foundry_evals,
+            evidence = make_evidence(row)
+            policy_citations = await services.policy_search.search(
+                make_policy_query(evidence),
+                top=5,
             )
-            for result in results:
-                summaries.append(
-                    {
-                        "case_id": row["case_id"],
-                        "provider": result.provider,
-                        "passed": result.passed,
-                        "failed": result.failed,
-                        "total": result.total,
-                        "report_url": result.report_url,
-                    }
+            if not policy_citations:
+                raise ValueError(f"No refund policy passages were retrieved for {row['case_id']}")
+            policy_context = "\n\n".join(
+                f"[{citation.chunk_id}] {citation.title}\n{citation.quote}"
+                for citation in policy_citations
+            )
+            workflow = build_assessment_workflow(settings, services.policy_search)
+            workflow_result = await workflow.run(evidence)
+            outputs = workflow_result.get_outputs()
+            if len(outputs) != 1:
+                raise RuntimeError(
+                    f"Expected one assessment output for {row['case_id']}, received {len(outputs)}"
                 )
-                result.raise_for_status()
+            result = await foundry_evals.evaluate(
+                [
+                    make_eval_item(
+                        evidence,
+                        outputs[0],
+                        policy_context,
+                    )
+                ],
+                eval_name=f"Refund assessment {row['case_id']}",
+            )
+            summaries.append(
+                {
+                    "case_id": row["case_id"],
+                    "provider": result.provider,
+                    "eval_id": result.eval_id,
+                    "run_id": result.run_id,
+                    "status": result.status,
+                    "passed": result.passed,
+                    "failed": result.failed,
+                    "total": result.total,
+                    "report_url": result.report_url,
+                    "error": result.error,
+                    "per_evaluator": result.per_evaluator,
+                }
+            )
+            if not result.all_passed:
+                failures.append(
+                    f"{row['case_id']}: eval {result.eval_id}, run {result.run_id}, "
+                    f"status={result.status}, error={result.error or 'not provided'}"
+                )
     finally:
-        await project_client.close()
-        await services.close()
-        await credential.close()
+        try:
+            await judge_client.close()
+        finally:
+            try:
+                await project_client.close()
+            finally:
+                try:
+                    await services.close()
+                finally:
+                    await credential.close()
 
     output = Path("evals/results") / f"foundry-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(summaries, indent=2), encoding="utf-8")
     print(output)
+    if failures:
+        raise RuntimeError("Foundry evaluation failed:\n" + "\n".join(failures))
 
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-The script uses the current Agent Framework `FoundryEvals` and `evaluate_workflow` integration documented by Microsoft.
+The script uses the current Agent Framework `FoundryEvals` integration and names each Foundry evaluation `Refund assessment {case_id}`.
 It evaluates actual workflow outputs, not an isolated prompt.
 
 Run five rotating cases per week:
 
 ```bash
-cd python
+cd backend
 source .venv/bin/activate
+cd ..
 export EVAL_CASE_COUNT=5
 export EVAL_OFFSET=0
-PYTHONPATH=src:. python ../evals/run_foundry_eval.py
-cd ..
+PYTHONPATH=backend/src:backend:. python evals/run_foundry_eval.py
 ```
 
 Run all 200 cases only before a major release and only after checking the remaining evaluation budget:
@@ -6582,11 +6714,14 @@ except QuotaExceededError as exc:
 Set the assessment output ceiling in `AssessmentExecutor`:
 
 ```python
-default_options={
-    "response_format": AssessmentDraft,
-    "temperature": 0,
-    "max_tokens": 1600,
-},
+response = await self._agent.run(
+    prompt,
+    options={
+        "response_format": AssessmentDraft,
+        "temperature": 0,
+        "max_tokens": 1600,
+    },
+)
 ```
 
 These controls produce the following monthly maximums:
