@@ -6021,9 +6021,9 @@ tests
 Build and test locally:
 
 ```bash
-docker build -t refundflow-api:local python
+docker build -t refundflow-api:local backend
 docker run --rm -p 8000:8000 \
-  --env-file python/.env \
+  --env-file backend/.env \
   refundflow-api:local
 curl --fail http://localhost:8000/health/live
 ```
@@ -6037,7 +6037,7 @@ export IMAGE_TAG=$(git rev-parse --short HEAD)
 az acr build \
   --registry "$ACR_NAME" \
   --image "refundflow-api:${IMAGE_TAG}" \
-  python
+  backend
 
 export ACR_LOGIN_SERVER=$(jq -r '.acrLoginServer.value' /tmp/refundflow-outputs.json)
 
@@ -6113,9 +6113,9 @@ az containerapp update \
 Publish from the Python project root so `function_app.py`, `functions`, and `src` are packaged together:
 
 ```bash
-cd python
+cd backend
 source .venv/bin/activate
-func azure functionapp publish "$FUNCTION_APP_NAME" --python
+func azure functionapp publish "$FUNCTION_APP_NAME" --backend
 cd ..
 ```
 
@@ -6160,8 +6160,7 @@ az storage cors add \
   --origins "https://${STATIC_WEB_HOST}" \
   --allowed-headers '*' \
   --exposed-headers 'ETag,x-ms-request-id' \
-  --max-age 3600 \
-  --auth-mode login
+  --max-age 3600 
 ```
 
 Build the static site:
