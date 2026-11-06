@@ -2,7 +2,17 @@ name: Deploy development
 
 on:
   workflow_dispatch:
-  
+    inputs:
+      deploy_target:
+        description: Which application components to deploy
+        type: choice
+        options:
+          - backend
+          - frontend
+          - both
+        default: both
+        required: true
+
 permissions:
   id-token: write
   contents: read
@@ -22,32 +32,34 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - uses: azure/setup-bicep@v2
       - uses: pnpm/action-setup@v4
+        if: inputs.deploy_target != 'backend'
         with:
           version: 9
       - uses: actions/setup-node@v4
+        if: inputs.deploy_target != 'backend'
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - uses: actions/setup-python@v5
+        if: inputs.deploy_target != 'frontend'
         with:
           python-version: '3.11'
 
-      - name: Deploy infrastructure
-        run: |
-          az deployment group create \
-            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --template-file infra/main.bicep \
-            --parameters infra/dev.bicepparam \
-            --name "refundflow-${GITHUB_SHA::7}"
-
       - name: Read deployment outputs
         run: |
+          DEPLOYMENT_NAME=$(az deployment group list \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query "[?starts_with(name, 'refundflow-') && properties.provisioningState=='Succeeded'] | sort_by(@, &properties.timestamp) | [-1].name" \
+            --output tsv)
+          if [ -z "$DEPLOYMENT_NAME" ]; then
+            echo "::error::No successful RefundFlow infrastructure deployment found. Run Deploy development infrastructure first."
+            exit 1
+          fi
           az deployment group show \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --name "refundflow-${GITHUB_SHA::7}" \
+            --name "$DEPLOYMENT_NAME" \
             --query properties.outputs -o json > outputs.json
           echo "ACR_NAME=$(jq -r '.acrName.value' outputs.json)" >> "$GITHUB_ENV"
           echo "ACR_SERVER=$(jq -r '.acrLoginServer.value' outputs.json)" >> "$GITHUB_ENV"
@@ -64,10 +76,12 @@ jobs:
           echo "EMAIL_SERVICE_NAME=$(jq -r '.emailServiceName.value' outputs.json)" >> "$GITHUB_ENV"
           echo "APPINSIGHTS_CONNECTION_STRING=$(jq -r '.appInsightsConnectionString.value' outputs.json)" >> "$GITHUB_ENV"
 
-      - name: Build API image
-        run: az acr build --registry "$ACR_NAME" --image "refundflow-api:${GITHUB_SHA}" python
+      - name: Build backend image
+        if: inputs.deploy_target != 'frontend'
+        run: az acr build --registry "$ACR_NAME" --image "refundflow-api:${GITHUB_SHA}" backend
 
-      - name: Deploy API image
+      - name: Deploy backend image
+        if: inputs.deploy_target != 'frontend'
         run: |
           az containerapp update \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
@@ -75,13 +89,16 @@ jobs:
             --image "${ACR_SERVER}/refundflow-api:${GITHUB_SHA}"
 
       - name: Install Functions tools
+        if: inputs.deploy_target != 'frontend'
         run: npm install --global azure-functions-core-tools@4 --unsafe-perm true
 
       - name: Deploy Functions
-        working-directory: python
+        if: inputs.deploy_target != 'frontend'
+        working-directory: backend
         run: func azure functionapp publish "$FUNCTION_NAME" --python
 
       - name: Restore runtime configuration
+        if: inputs.deploy_target != 'frontend'
         run: |
           az extension add --name communication --upgrade
           SEARCH_SECRET_URI=$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" --name azure-search-query-key --query id -o tsv)
@@ -159,6 +176,7 @@ jobs:
               "AZURE_TRACING_GEN_AI_CONTENT_RECORDING_ENABLED=false"
 
       - name: Build frontend
+        if: inputs.deploy_target != 'backend'
         working-directory: frontend
         env:
           NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
@@ -170,6 +188,7 @@ jobs:
           pnpm build
 
       - name: Deploy frontend
+        if: inputs.deploy_target != 'backend'
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
@@ -179,6 +198,7 @@ jobs:
           skip_app_build: true
 
       - name: Verify health
+        if: inputs.deploy_target != 'frontend'
         run: |
           for attempt in {1..12}; do
             if curl --fail --silent "${API_URL}/health/ready"; then exit 0; fi
