@@ -2,72 +2,17 @@
 
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-
 import { AppShell } from "@/components/app-shell";
 import { useApi } from "@/lib/api";
 
-interface Criterion {
-  name: string;
-  status: string;
-  explanation: string;
-  citations: Array<{ chunk_id: string; title: string; quote: string }>;
+interface Citation { chunk_id:string; title:string; quote:string; policy_version?:string; }
+interface Criterion { name:string; status:string; explanation:string; citations:Citation[]; }
+interface ReviewDetail { claim:{id:string;order_id:string;claim_type?:string;requested_amount:string;currency:string;status?:string}; assessment:{summary:string;proposed_refund_amount:string;confidence:number;criteria:Criterion[]}; approval_count?:number; }
+function ReviewContent(){
+ const {request}=useApi();const params=useSearchParams();const claimId=params.get("claimId")??"";const [review,setReview]=useState<ReviewDetail|null>(null);const [message,setMessage]=useState("");const [rationale,setRationale]=useState("");const [decision,setDecision]=useState<"approve"|"reject"|null>(null);const [busy,setBusy]=useState(false);
+ useEffect(()=>{if(claimId)request<ReviewDetail>(`/v1/reviews/${claimId}`).then(setReview).catch(e=>setMessage(e instanceof Error?e.message:"Assessment unavailable"))},[claimId,request]);
+ const proposed=Number(review?.assessment.proposed_refund_amount??0);const needsTwo=proposed>500;const validSources=Boolean(review?.assessment.criteria.length)&&review?.assessment.criteria.every(c=>c.citations?.length>0&&c.citations.every(x=>Boolean(x.quote?.trim())&&x.policy_version==="2026-01"));
+ async function decide(event:FormEvent){event.preventDefault();if(!decision||busy)return;if(rationale.trim().length<3){setMessage("Add a reviewer rationale of at least three characters before recording a decision.");setDecision(null);return}setBusy(true);setMessage("");try{await request(`/v1/reviews/${claimId}/decision`,{method:"POST",body:JSON.stringify({decision,comment:rationale})});const refreshed=await request<ReviewDetail>(`/v1/reviews/${claimId}`);setReview(refreshed);setMessage(decision==="approve"&&needsTwo?`Approval recorded: ${Math.min(refreshed.approval_count??1,2)} of 2. Payment: Not submitted.`:"Decision recorded. Authoritative claim status refreshed.");setDecision(null)}catch(err){setMessage(err instanceof Error?`${err.message}. Refresh the claim before trying again.`:"Decision could not be recorded. Refresh the claim before trying again.")}finally{setBusy(false)}}
+ return <AppShell>{!review?<section className="surface" role={message?"alert":"status"}>{message||"Loading assessment…"}</section>:<><h1 className="page-title">Review {review.claim.id}</h1><p className="page-subtitle">{review.claim.order_id} · {(review.claim.claim_type??"Claim").replaceAll("_"," ")} · Policy 2026-01</p><div className="review-grid"><section className="surface review-workspace"><h2 className="section-title" style={{color:"#6653ec"}}>Assessment · AI-assisted</h2><p>Requested CAD {Number(review.claim.requested_amount).toFixed(2)}<br/>Proposed CAD {proposed.toFixed(2)}</p><p className="helper">AI assessment is advice only. A human reviewer makes the decision.</p>{needsTwo&&<p className="alert">Two distinct reviewer identities are required for proposals above CAD 500.00. Current approvals: {review.approval_count??0} of 2. Payment: Not submitted.</p>}<div style={{marginTop:22}}>{review.assessment.criteria.map(c=><article className="criterion" key={c.name}><h3 style={{margin:"0 0 6px",fontWeight:500}}>{c.name} · {c.status}</h3><p style={{margin:"0 0 8px"}}>{c.explanation}</p>{c.citations?.map(src=><details key={src.chunk_id}><summary>{src.title} · {src.chunk_id}</summary><blockquote className="helper">{src.quote||"The authoritative source passage is unavailable."}</blockquote><span className="helper">Policy version: {src.policy_version||"Unverified"}</span></details>)}</article>)}</div>{!validSources&&<p className="alert" style={{marginTop:18}}>Positive policy assertions are blocked because one or more citations are missing, stale or unsupported. Verify the source passage with the policy owner.</p>}<form onSubmit={e=>{e.preventDefault();setDecision("approve")}} style={{marginTop:"auto",paddingTop:22}}><label className="field">Reviewer rationale<textarea required minLength={3} value={rationale} onChange={e=>setRationale(e.target.value)} placeholder="Explain your decision and evidence references."/></label><div className="button-row"><button type="button" className="button danger" onClick={()=>setDecision("reject")}>Reject claim</button><button className="button" disabled={!validSources}>Record approval</button></div></form></section><aside className="surface"><h2 className="section-title">Inspectable sources</h2><div className="source-list">{review.assessment.criteria.flatMap(c=>c.citations??[]).map(src=><div key={src.chunk_id}><strong>{src.title||src.chunk_id}</strong><p className="helper">{src.quote?"Source passage available":"Passage unavailable"}</p></div>)}</div><p className="source-note">Policy version 2026-01<br/>Check every passage against the authoritative policy record.</p></aside></div>{message&&<p className="surface" role="status" aria-live="polite">{message}</p>}{decision&&<div className="modal-backdrop" role="presentation"><section className="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title"><h2 className="section-title" id="confirm-title">Confirm {decision===`approve`?"approval":"rejection"}</h2><p>Record this {decision} decision for claim {review.claim.id}? Your rationale will be saved for the review record.</p>{needsTwo&&decision==="approve"&&<p className="alert">This is the first approval step when applicable. Two distinct reviewers are required; no payment will be submitted yet.</p>}<div className="button-row"><button className="button secondary" onClick={()=>setDecision(null)}>Go back</button><button className={`button ${decision==="reject"?"danger":""}`} disabled={busy||(!validSources&&decision==="approve")} onClick={decide as never}>{busy?"Recording…":"Confirm decision"}</button></div></section></div>}</>}</AppShell>
 }
-
-interface ReviewDetail {
-  claim: { id: string; order_id: string; requested_amount: string; currency: string };
-  assessment: { summary: string; proposed_refund_amount: string; confidence: number; criteria: Criterion[] };
-}
-
-export default function ReviewPage() {
-  return (
-    <Suspense fallback={<AppShell><p>Loading assessment...</p></AppShell>}>
-      <ReviewContent />
-    </Suspense>
-  );
-}
-
-function ReviewContent() {
-  const { request } = useApi();
-  const searchParams = useSearchParams();
-  const claimId = searchParams.get("claimId") ?? "";
-  const [review, setReview] = useState<ReviewDetail | null>(null);
-  const [message, setMessage] = useState("");
-  useEffect(() => {
-    if (claimId) request<ReviewDetail>(`/v1/reviews/${claimId}`).then(setReview);
-  }, [claimId, request]);
-
-  async function decide(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    await request(`/v1/reviews/${claimId}/decision`, {
-      method: "POST",
-      body: JSON.stringify({ decision: formData.get("decision"), comment: formData.get("comment") }),
-    });
-    setMessage("Decision accepted.");
-  }
-
-  return (
-    <AppShell>
-      {!review ? <p>Loading assessment...</p> : <>
-        <h1 className="text-3xl font-semibold">Review claim {review.claim.id}</h1>
-        <p className="mt-3 text-slate-300">{review.assessment.summary}</p>
-        <div className="mt-8 overflow-x-auto rounded-2xl border border-slate-800">
-          <table className="w-full text-left"><thead><tr><th className="p-4">Criterion</th><th>Status</th><th>Explanation</th><th>Citations</th></tr></thead>
-            <tbody>{review.assessment.criteria.map((criterion) => <tr key={criterion.name} className="border-t border-slate-800 align-top">
-              <td className="p-4 font-medium">{criterion.name}</td><td>{criterion.status}</td><td className="max-w-md pr-4">{criterion.explanation}</td>
-              <td className="max-w-md pr-4">{criterion.citations.map((citation) => <details key={citation.chunk_id}><summary>{citation.title}</summary><p className="text-sm text-slate-300">{citation.quote}</p></details>)}</td>
-            </tr>)}</tbody>
-          </table>
-        </div>
-        <form onSubmit={decide} className="mt-8 grid max-w-xl gap-4">
-          <textarea required minLength={3} name="comment" placeholder="Explain the decision" className="min-h-28 rounded-lg bg-slate-800 p-3" />
-          <div className="flex gap-3">
-            <button name="decision" value="approve" className="rounded-lg bg-emerald-400 px-5 py-3 font-semibold text-slate-950">Approve</button>
-            <button name="decision" value="reject" className="rounded-lg bg-rose-400 px-5 py-3 font-semibold text-slate-950">Reject</button>
-          </div>
-          <p role="status">{message}</p>
-        </form>
-      </>}
-    </AppShell>
-  );
-}
+export default function ReviewPage(){return <Suspense fallback={<AppShell><p>Loading assessment…</p></AppShell>}><ReviewContent/></Suspense>}

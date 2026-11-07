@@ -19,10 +19,6 @@ export default function AdminPage() {
   useEffect(() => {
     request<Kpis>("/v1/admin/kpis").then(setKpis);
   }, [request]);
-  const cards = kpis ? [
-    ["Total claims", kpis.total_claims], ["Pending", kpis.pending_approval],
-    ["Refunded", kpis.refunded], ["Rejected", kpis.rejected],
-    ["Decision rate", `${Math.round(kpis.decision_rate * 100)}%`],
-  ] : [];
-  return <AppShell><h1 className="text-3xl font-semibold">Operations</h1><div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">{cards.map(([label, value]) => <section key={label} className="rounded-2xl border border-slate-800 bg-slate-900 p-5"><p className="text-sm text-slate-400">{label}</p><p className="mt-2 text-3xl font-semibold">{value}</p></section>)}</div></AppShell>;
+  const cards = kpis ? [["Total claims", kpis.total_claims], ["Pending approval", kpis.pending_approval], ["Refunded", kpis.refunded], ["Rejected", kpis.rejected], ["Decision rate", kpis.total_claims===0?"No decisions yet":`${((kpis.refunded+kpis.rejected)/kpis.total_claims*100).toFixed(1)}%`]] : [];
+  return <AppShell><h1 className="page-title">Operations</h1><p className="page-subtitle">Current claims · illustrative demo metrics</p>{!kpis?<section className="surface" role="status">Loading operations metrics…</section>:<><div className="metrics">{cards.map(([label,value])=><section key={String(label)} className="metric"><p className="metric-label">{label}</p><p className="metric-value">{value}</p></section>)}</div><section className="surface" style={{minHeight:250}}><h2 className="section-title">Decision rate</h2><p>(Refunded + Rejected) ÷ Total claims = ({kpis.refunded} + {kpis.rejected}) ÷ {kpis.total_claims} = {kpis.total_claims===0?"No decisions yet":`${((kpis.refunded+kpis.rejected)/kpis.total_claims*100).toFixed(1)}%`}</p><p className="helper">Metric period and source must be confirmed before production use.</p></section></>}</AppShell>;
 }
