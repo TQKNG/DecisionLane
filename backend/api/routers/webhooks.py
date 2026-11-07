@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 import stripe
 from azure.identity import DefaultAzureCredential
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from api.dependencies import get_claim_repository
+from api.responses import error_responses
 from refundflow.config import get_settings
 from refundflow.domain.models import ClaimStatus
 from refundflow.repositories.claims import ClaimRepository
@@ -21,12 +23,43 @@ ClaimRepositoryDep = Annotated[
 ]
 
 
-@router.post("/stripe")
+class StripeWebhookResponse(BaseModel):
+    received: Literal[True]
+
+
+@router.post(
+    "/stripe",
+    response_model=StripeWebhookResponse,
+    operation_id="receive_stripe_webhook",
+    summary="Receive a Stripe refund event",
+    description=(
+        "Accepts a Stripe webhook only after verifying its signature against the "
+        "configured webhook secret. This endpoint uses Stripe-Signature, not Entra bearer auth."
+    ),
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "description": (
+                            "Stripe event payload. The signature is verified against the "
+                            "exact request bytes."
+                        ),
+                        "additionalProperties": True,
+                    }
+                }
+            },
+        }
+    },
+    responses=error_responses(400),
+)
 async def stripe_webhook(
     request: Request,
     stripe_signature: Annotated[str, Header(alias="Stripe-Signature")],
     repository: ClaimRepositoryDep,
-) -> dict[str, bool]:
+) -> StripeWebhookResponse:
     payload = await request.body()
     try:
         event = stripe.Webhook.construct_event(
@@ -66,4 +99,4 @@ async def stripe_webhook(
                         )
                     finally:
                         credential.close()
-    return {"received": True}
+    return StripeWebhookResponse(received=True)

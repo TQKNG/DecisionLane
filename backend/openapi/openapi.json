@@ -1,0 +1,1609 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RefundFlow API",
+    "description": "API for submitting refund claims, uploading evidence, and reviewing refund assessments. Protected operations use Microsoft Entra bearer tokens.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/claims": {
+      "post": {
+        "tags": [
+          "claims"
+        ],
+        "summary": "Create a refund claim",
+        "description": "Creates a claim for an order owned by the signed-in customer. The requested amount and currency must be compatible with the paid order.",
+        "operationId": "create_claim",
+        "security": [
+          {
+            "EntraBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClaimRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundClaim"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid or violates a business rule.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have a required role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "claims"
+        ],
+        "summary": "List refund claims",
+        "description": "Customers receive only their own claims. Reviewers and Admins can list claims across customers. Optionally filter by the claim status string.",
+        "operationId": "list_claims",
+        "security": [
+          {
+            "EntraBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional claim status filter.",
+              "title": "Status"
+            },
+            "description": "Optional claim status filter."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RefundClaim"
+                  },
+                  "title": "Response List Claims"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have a required role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/claims/{claim_id}": {
+      "get": {
+        "tags": [
+          "claims"
+        ],
+        "summary": "Get a refund claim",
+        "description": "Returns a claim to its owning Customer or to an authenticated Reviewer or Admin. A customer who does not own the claim receives a not-found response.",
+        "operationId": "get_claim",
+        "security": [
+          {
+            "EntraBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of the claim.",
+              "title": "Claim Id"
+            },
+            "description": "Unique identifier of the claim."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundClaim"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have a required role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/claims/{claim_id}/uploads": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Request an evidence upload",
+        "description": "For the owning Customer, creates a short-lived direct-to-Blob upload grant for evidence belonging to the claim. Upload the file to `upload_url` using the returned `required_headers`; the Blob request is not an API operation.",
+        "operationId": "request_claim_upload",
+        "security": [
+          {
+            "EntraBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of the claim.",
+              "title": "Claim Id"
+            },
+            "description": "Unique identifier of the claim."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadGrant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid or violates a business rule.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have a required role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the resource's current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/claims/{claim_id}/uploads/{document_id}/complete": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Confirm an evidence upload",
+        "description": "For the owning Customer, verifies the uploaded Blob size and content type against the original upload request.",
+        "operationId": "complete_claim_upload",
+        "security": [
+          {
+            "EntraBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of the claim.",
+              "title": "Claim Id"
+            },
+            "description": "Unique identifier of the claim."
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of the uploaded document.",
+              "title": "Document Id"
+            },
+            "description": "Unique identifier of the uploaded document."
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadCompleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid or violates a business rule.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have a required role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/claims/{claim_id}/submit": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Submit a claim for processing",
+        "description": "For the owning Customer, starts the refund assessment workflow after at least one evidence file has been added to the claim.",
+        "operationId": "submit_claim",
+        "security": [
+          {
+            "EntraBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of the claim.",
+              "title": "Claim Id"
+            },
+            "description": "Unique identifier of the claim."
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimSubmissionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid or violates a business rule.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have a required role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the resource's current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reviews/{claim_id}": {
+      "get": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "Get a claim assessment for review",
+        "description": "For a Reviewer or Admin, returns a claim, its latest assessment, and recorded reviewer decisions.",
+        "operationId": "get_review",
+        "security": [
+          {
+            "EntraBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of the claim.",
+              "title": "Claim Id"
+            },
+            "description": "Unique identifier of the claim."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have a required role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the resource's current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reviews/{claim_id}/decision": {
+      "post": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "Submit a reviewer decision",
+        "description": "For a Reviewer or Admin, submits an approval or rejection for a claim awaiting review. The workflow may require decisions from two distinct reviewers.",
+        "operationId": "decide_review",
+        "security": [
+          {
+            "EntraBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of the claim.",
+              "title": "Claim Id"
+            },
+            "description": "Unique identifier of the claim."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDecisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid or violates a business rule.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have a required role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the resource's current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/kpis": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Get administrative claim metrics",
+        "description": "Returns claim totals and counts grouped by status for an Admin.",
+        "operationId": "get_admin_kpis",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminKpis"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have a required role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "EntraBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/webhooks/stripe": {
+      "post": {
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Receive a Stripe refund event",
+        "description": "Accepts a Stripe webhook only after verifying its signature against the configured webhook secret. This endpoint uses Stripe-Signature, not Entra bearer auth.",
+        "operationId": "receive_stripe_webhook",
+        "parameters": [
+          {
+            "name": "Stripe-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Stripe-Signature"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StripeWebhookResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid or violates a business rule.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Stripe event payload. The signature is verified against the exact request bytes.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Check API liveness",
+        "description": "Returns a successful response while the API process is running.",
+        "operationId": "get_liveness",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Check API readiness",
+        "description": "Returns a successful response when the API can serve requests.",
+        "operationId": "get_readiness",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdminKpis": {
+        "properties": {
+          "total_claims": {
+            "type": "integer",
+            "title": "Total Claims"
+          },
+          "pending_approval": {
+            "type": "integer",
+            "title": "Pending Approval"
+          },
+          "refunded": {
+            "type": "integer",
+            "title": "Refunded"
+          },
+          "rejected": {
+            "type": "integer",
+            "title": "Rejected"
+          },
+          "decision_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Decision Rate"
+          },
+          "by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_claims",
+          "pending_approval",
+          "refunded",
+          "rejected",
+          "decision_rate",
+          "by_status"
+        ],
+        "title": "AdminKpis"
+      },
+      "ApprovalRecord": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "reviewer_id": {
+            "type": "string",
+            "title": "Reviewer Id"
+          },
+          "reviewer_name": {
+            "type": "string",
+            "title": "Reviewer Name"
+          },
+          "decision": {
+            "type": "string",
+            "title": "Decision"
+          },
+          "comment": {
+            "type": "string",
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id",
+          "reviewer_id",
+          "reviewer_name",
+          "decision",
+          "comment"
+        ],
+        "title": "ApprovalRecord"
+      },
+      "ApprovalRequest": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "title": "Decision",
+            "description": "Reviewer decision; must be either `approve` or `reject`.",
+            "examples": [
+              "approve"
+            ]
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Comment",
+            "description": "Reviewer rationale for the decision."
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision",
+          "comment"
+        ],
+        "title": "ApprovalRequest"
+      },
+      "AssessmentCriterion": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CriterionStatus"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "evidence_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Document Ids"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyCitation"
+            },
+            "type": "array",
+            "title": "Citations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "status",
+          "explanation"
+        ],
+        "title": "AssessmentCriterion"
+      },
+      "AssessmentResult": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "eligible": {
+            "type": "boolean",
+            "title": "Eligible"
+          },
+          "proposed_refund_amount": {
+            "type": "string",
+            "title": "Proposed Refund Amount"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          },
+          "requires_two_reviewers": {
+            "type": "boolean",
+            "title": "Requires Two Reviewers"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "criteria": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentCriterion"
+            },
+            "type": "array",
+            "title": "Criteria"
+          },
+          "model_deployment": {
+            "type": "string",
+            "title": "Model Deployment"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "policy_snapshot_id": {
+            "type": "string",
+            "title": "Policy Snapshot Id"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id",
+          "eligible",
+          "proposed_refund_amount",
+          "confidence",
+          "requires_two_reviewers",
+          "summary",
+          "criteria",
+          "model_deployment",
+          "prompt_version",
+          "policy_snapshot_id"
+        ],
+        "title": "AssessmentResult"
+      },
+      "ClaimStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "uploading",
+          "scanning",
+          "processing",
+          "needs_information",
+          "pending_approval",
+          "approved",
+          "rejected",
+          "refund_submitted",
+          "refunded",
+          "refund_failed",
+          "pending_ai_capacity",
+          "closed"
+        ],
+        "title": "ClaimStatus"
+      },
+      "ClaimSubmissionResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "scanning",
+            "title": "Status"
+          },
+          "workflow_instance_id": {
+            "type": "string",
+            "title": "Workflow Instance Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "workflow_instance_id"
+        ],
+        "title": "ClaimSubmissionResponse"
+      },
+      "ClaimType": {
+        "type": "string",
+        "enum": [
+          "delayed_delivery",
+          "non_delivery",
+          "damaged_item",
+          "wrong_item"
+        ],
+        "title": "ClaimType"
+      },
+      "CreateClaimRequest": {
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "title": "Order Id",
+            "description": "Identifier of an order owned by the signed-in customer."
+          },
+          "claim_type": {
+            "$ref": "#/components/schemas/ClaimType",
+            "description": "Reason category for the refund claim."
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Reason",
+            "description": "Explanation of the refund request."
+          },
+          "requested_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Requested Amount",
+            "description": "Requested refund amount; must not exceed the amount paid for the order."
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "description": "Currency code, which must match the order.",
+            "default": "CAD",
+            "examples": [
+              "CAD"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_id",
+          "claim_type",
+          "reason",
+          "requested_amount"
+        ],
+        "title": "CreateClaimRequest"
+      },
+      "CriterionStatus": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "fail",
+          "review"
+        ],
+        "title": "CriterionStatus"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "ready"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse"
+      },
+      "PolicyCitation": {
+        "properties": {
+          "policy_id": {
+            "type": "string",
+            "title": "Policy Id"
+          },
+          "policy_version": {
+            "type": "string",
+            "title": "Policy Version"
+          },
+          "chunk_id": {
+            "type": "string",
+            "title": "Chunk Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote"
+          }
+        },
+        "type": "object",
+        "required": [
+          "policy_id",
+          "policy_version",
+          "chunk_id",
+          "title",
+          "quote"
+        ],
+        "title": "PolicyCitation"
+      },
+      "RefundClaim": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "customer_id": {
+            "type": "string",
+            "title": "Customer Id"
+          },
+          "customer_email": {
+            "type": "string",
+            "title": "Customer Email"
+          },
+          "order_id": {
+            "type": "string",
+            "title": "Order Id"
+          },
+          "claim_type": {
+            "$ref": "#/components/schemas/ClaimType"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Reason"
+          },
+          "requested_amount": {
+            "type": "string",
+            "title": "Requested Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CAD"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ClaimStatus",
+            "default": "draft"
+          },
+          "workflow_instance_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow Instance Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "customer_id",
+          "customer_email",
+          "order_id",
+          "claim_type",
+          "reason",
+          "requested_amount"
+        ],
+        "title": "RefundClaim"
+      },
+      "ReviewDecisionResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "accepted",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ReviewDecisionResponse"
+      },
+      "ReviewDetail": {
+        "properties": {
+          "claim": {
+            "$ref": "#/components/schemas/RefundClaim"
+          },
+          "assessment": {
+            "$ref": "#/components/schemas/AssessmentResult"
+          },
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalRecord"
+            },
+            "type": "array",
+            "title": "Approvals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim",
+          "assessment",
+          "approvals"
+        ],
+        "title": "ReviewDetail"
+      },
+      "StripeWebhookResponse": {
+        "properties": {
+          "received": {
+            "type": "boolean",
+            "const": true,
+            "title": "Received"
+          }
+        },
+        "type": "object",
+        "required": [
+          "received"
+        ],
+        "title": "StripeWebhookResponse"
+      },
+      "UploadCompleteResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "uploaded",
+            "title": "Status"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "document_id"
+        ],
+        "title": "UploadCompleteResponse"
+      },
+      "UploadGrant": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "blob_name": {
+            "type": "string",
+            "title": "Blob Name"
+          },
+          "upload_url": {
+            "type": "string",
+            "title": "Upload Url"
+          },
+          "required_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Required Headers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "blob_name",
+          "upload_url",
+          "required_headers"
+        ],
+        "title": "UploadGrant",
+        "description": "Grant for uploading one file directly to quarantine Blob Storage."
+      },
+      "UploadRequest": {
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "File Name",
+            "description": "Original file name for display."
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type",
+            "description": "MIME content type of the evidence file.",
+            "examples": [
+              "image/jpeg"
+            ]
+          },
+          "size_bytes": {
+            "type": "integer",
+            "maximum": 4194304.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Size Bytes",
+            "description": "File size in bytes; maximum is 4194304."
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_name",
+          "content_type",
+          "size_bytes"
+        ],
+        "title": "UploadRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "EntraBearer": {
+        "type": "http",
+        "description": "Microsoft Entra access token for the RefundFlow API audience. Authorization uses the token's roles claim.",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "health",
+      "description": "Liveness and readiness probes."
+    },
+    {
+      "name": "claims",
+      "description": "Create and retrieve refund claims."
+    },
+    {
+      "name": "uploads",
+      "description": "Request evidence upload and submit claims for processing."
+    },
+    {
+      "name": "reviews",
+      "description": "Review assessments and record reviewer decisions."
+    },
+    {
+      "name": "admin",
+      "description": "Administrative operational metrics."
+    },
+    {
+      "name": "webhooks",
+      "description": "Signed callbacks from external services."
+    }
+  ]
+}
