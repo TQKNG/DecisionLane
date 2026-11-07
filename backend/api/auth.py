@@ -12,7 +12,15 @@ from jwt import PyJWKClient
 
 from refundflow.config import get_settings
 
-bearer_scheme = HTTPBearer(auto_error=False)
+bearer_scheme = HTTPBearer(
+    scheme_name="EntraBearer",
+    bearerFormat="JWT",
+    description=(
+        "Microsoft Entra access token for the RefundFlow API audience. "
+        "Authorization uses the token's roles claim."
+    ),
+    auto_error=False,
+)
 
 
 @dataclass(frozen=True)
@@ -42,7 +50,7 @@ def decode_token(token: str) -> dict[str, object]:
         algorithms=["RS256"],
         audience=audience,
         issuer=f"https://login.microsoftonline.com/{tenant_id}/v2.0",
-        options={"require": ["exp", "iat", "iss", "aud", "sub"]},
+        options={"require": ["exp", "iat", "iss", "aud", "sub", "roles"]},
     )
 
 
