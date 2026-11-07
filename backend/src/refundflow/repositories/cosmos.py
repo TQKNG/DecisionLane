@@ -98,6 +98,5 @@ class CosmosClaimRepository:
         iterator = self._container.query_items(
             query=query,
             parameters=parameters,
-            enable_cross_partition_query=True,
         )
         return [RefundClaim.model_validate(item["payload"]) async for item in iterator]
