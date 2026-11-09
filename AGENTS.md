@@ -1,27 +1,218 @@
-## graphify
+# PennyWorth agent instructions
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+These instructions apply to Codex agents working in this repository.
+More specific instructions in nested AGENTS.md files take precedence for files below their directory.
+User instructions take precedence over this file.
 
-When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+## 1. Repository purpose and architecture
 
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+PennyWorth is the RefundFlow refund-claim application.
+The backend is Python 3.11 with FastAPI, Azure Durable Functions, Cosmos DB, Blob Storage, Azure AI services, Microsoft Foundry, and Stripe.
+The frontend is a Next.js application with static-export compatibility, MSAL, Redux Toolkit, and RTK Query.
 
-## Multi-agent workflow
+Important areas:
 
-Use the project-scoped roles in `.codex/config.toml` for bounded frontend tasks.
-The coordinator owns the approved plan, dependency and shared-configuration changes, shared components, integration, and the task ledger at `docs/frontend/TASKS.md`.
-Do not start frontend implementation until the user explicitly requests it.
-Treat `docs/frontend/` as a manual coordination convention rather than an automatic scheduler.
-Use a common committed baseline for parallel work because uncommitted changes do not transfer to worktrees.
-Confirm each worker's checkout because agent sessions do not automatically create isolated worktrees.
+- backend/api: FastAPI application, authentication, and HTTP routers.
+- backend/function_app.py: Durable Functions HTTP starters, orchestrator, and activity functions.
+- backend/src/refundflow/domain: Pydantic domain contracts and deterministic policies.
+- backend/src/refundflow/services: Azure, payment, email, extraction, safety, and policy services.
+- backend/src/refundflow/repositories: persistence boundaries.
+- backend/tests: backend unit and API tests.
+- frontend/src: customer, reviewer, and operations experiences.
+- frontend/tests: frontend data-boundary tests.
+- infra/main.bicep: infrastructure source of truth.
+- backend/openapi/openapi.json: generated OpenAPI artifact.
+- spec/: implementation specifications intended to be decomposed into agent tasks.
+- GUIDE.md: broad sequential build and deployment guide.
+- graphify-out/: generated knowledge graph and navigation artifacts.
+
+## 2. General working rules
+
+- Never use the em dash character.
+- Preserve unrelated dirty changes and inspect git status before editing.
+- Never use destructive git commands or broad deletion commands without explicit user authorization.
+- Use apply_patch for local file edits.
+- Do not manually edit CHANGELOG.md files or generated files.
+- Keep full sentences on separate physical lines in long Markdown files.
+- Prefer simple, robust, maintainable changes over shortcuts.
+- Do not add credentials, tokens, signed URLs, customer data, or production secrets to source, tests, examples, schemas, or documentation.
+- Use synthetic fixtures and deterministic test data.
+- When a bug is reported, reproduce the real workflow before changing code when an end-to-end environment is available.
+- Inspect user-visible loading, empty, error, disabled, success, and conflict states when changing frontend behavior.
+
+## 3. Naming and style
+
+- Python functions, methods, variables, and parameters use snake_case.
+- Python classes, types, and public members use PascalCase.
+- TypeScript and JavaScript classes, types, and public members use PascalCase.
+- TypeScript and JavaScript local variables, parameters, and private methods use camelCase.
+- TypeScript and JavaScript global constants use ALL_CAPS with underscores.
+- Keep Python lines within the configured Ruff limit of 100 characters.
+- Use explicit Pydantic models for stable API and workflow contracts.
+- Keep network, database, Blob, payment, and email calls out of Durable orchestrators.
+- Keep deterministic business rules in ordinary Python functions that can be tested without Azure.
+
+## 4. Generated artifacts and source of truth
+
+Never hand-edit these generated or build outputs:
+
+- infra/main.json: generate from infra/main.bicep.
+- backend/openapi/openapi.json: generate with backend/scripts/export_openapi.py.
+- backend/build/: Python build output.
+- backend/src/refundflow.egg-info/: package metadata generated by installation.
+- frontend/.next/ and frontend/out/: frontend build output.
+- graphify-out/: update with graphify, not manual edits.
+
+When an API contract changes:
+
+1. Update FastAPI routes or Pydantic models.
+2. Run the OpenAPI export command from backend.
+3. Run OpenAPI contract tests.
+4. Review the generated diff for accidental exposure of secrets or internal endpoints.
+
+When infrastructure changes:
+
+1. Edit infra/main.bicep or its parameter files.
+2. Run az bicep build --file infra/main.bicep.
+3. Run validation or what-if before deployment.
+4. Do not modify infra/main.json directly.
+
+## 5. Graphify workflow
+
+The project knowledge graph is under graphify-out/.
+
+When the user types /graphify, use the installed graphify skill or instructions before doing anything else.
+
+For codebase questions, run graphify query "<question>" first when graphify-out/graph.json exists.
+Use graphify path "<A>" "<B>" for relationships and graphify explain "<concept>" for focused concepts.
+Dirty graphify-out/ files are expected after hooks or incremental updates.
+Do not skip graphify because graph files are dirty.
+Skip graphify only for stale or incorrect graph output work, or when the user explicitly says not to use it.
+
+If graphify-out/wiki/index.md exists, use it for broad navigation before raw source browsing.
+Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query, path, and explain do not provide enough context.
+After modifying code, run graphify update . from the repository root.
+
+## 6. Specification-driven work
+
+Specifications under spec/ are the planning source for bounded implementation work.
+Use the shared specification structure:
+
+1. Metadata.
+2. Context.
+3. Goals and non-goals.
+4. Current state and requirements.
+5. Implementation plan.
+6. Task breakdown.
+7. Verification.
+8. Acceptance criteria.
+9. Risks and decisions.
+10. Handoff.
+
+Every task in a specification should state:
+
+- A stable task ID.
+- Dependencies.
+- Owned files or directories.
+- The expected completion evidence.
+- Validation commands.
+- Integration needs and unresolved risks.
+
+The coordinator owns task decomposition, dependency changes, shared configuration, shared components, integration, and acceptance criteria.
+Workers implement only the explicitly assigned task and owned files.
+Workers must not spawn nested agents.
+Workers must not silently expand scope.
+Workers must report the baseline, owned files, changes, checks, evidence, integration requirements, and unresolved issues.
+
 Use separate worktrees for concurrent writers when available.
-If workers must share one checkout, assign disjoint file ownership and serialize changes to shared files.
-Only the coordinator updates `docs/frontend/TASKS.md` and shared files assigned to the coordinator.
-Worker agents must not spawn nested agents.
-Each handoff must state the baseline, owned files, changes, checks, evidence, integration needs, and unresolved issues.
-Run integrated checks only after the coordinator has combined the accepted work.
+Use a common committed baseline because uncommitted changes do not transfer reliably between worktrees.
+If workers share one checkout, assign disjoint files and serialize edits to shared files.
+Run integrated checks only after the coordinator combines accepted work.
+
+## 7. Backend workflow
+
+For backend changes:
+
+1. Read the relevant specification and current implementation.
+2. Identify the domain contract and repository boundaries affected.
+3. Implement deterministic validation before model or cloud calls where possible.
+4. Keep external service calls behind service classes.
+5. Make retries, timeouts, idempotency, and failure states explicit.
+6. Add unit tests that do not require Azure credentials or network access.
+7. Run the narrowest relevant tests, then the full backend checks.
+8. Run graphify update . after code changes.
+
+Standard backend checks:
+
+~~~bash
+cd backend
+source .venv/bin/activate
+python -m pip install --no-deps --editable .
+ruff check .
+mypy src api
+pytest -q
+cd ..
+~~~
+
+For OpenAPI changes, also run:
+
+~~~bash
+cd backend
+.venv/bin/python -m scripts.export_openapi
+.venv/bin/python -m scripts.export_openapi --check
+cd ..
+~~~
+
+For Durable Functions changes, verify that orchestrators remain deterministic and that activity retries do not duplicate payments, emails, or state transitions.
+
+## 8. Frontend workflow
+
+Do not begin frontend implementation unless the user explicitly requests frontend work.
+When frontend work is authorized, use the project-scoped roles in .codex/config.toml for bounded tasks.
+
+Workers must keep demo and live data paths separate.
+Never substitute demo data after a live request fails.
+Preserve MSAL authentication, Redux Toolkit and RTK Query transport boundaries, static export behavior, and existing shared components unless the task explicitly assigns them.
+
+Standard frontend checks:
+
+~~~bash
+cd frontend
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+cd ..
+~~~
+
+Review responsive behavior and accessibility for every user-visible change.
+Check keyboard navigation, labels, focus behavior, loading states, error recovery, disabled states, and mobile layout.
+
+## 9. Documentation workflow
+
+Use spec/ for focused, task-oriented specifications.
+Use GUIDE.md for the broad build and deployment sequence.
+Keep the two documents linked but do not duplicate a focused implementation specification into GUIDE.md unless the user requests it.
+
+When editing long Markdown:
+
+- Keep one full sentence per physical line.
+- Preserve heading hierarchy.
+- Use tables for stable mappings and task inventories.
+- Keep deployment commands close to the resource or service they configure.
+- Include acceptance criteria and verification commands.
+- Do not present unimplemented behavior as completed.
+
+## 10. Handoff and completion
+
+A completed task handoff must include:
+
+- The committed baseline or exact starting revision.
+- Files and symbols changed.
+- Tests and checks run.
+- Evidence of the result.
+- Any generated artifacts updated through their generator.
+- Integration steps required by the coordinator.
+- Remaining risks, limitations, or unresolved questions.
+
+Do not claim completion when required tests, generated artifacts, documentation, or integration work remain.
