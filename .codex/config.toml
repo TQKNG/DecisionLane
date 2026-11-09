@@ -9,3 +9,19 @@ config_file = "agents/frontend-builder.toml"
 [agents.frontend-reviewer]
 description = "Independently reviews PennyWorth frontend work for correctness, accessibility, consistency, and integration risks without editing by default."
 config_file = "agents/frontend-reviewer.toml"
+
+[agents.spec-coordinator]
+description = "Coordinates PennyWorth specification-driven work, task dependencies, bounded agent assignments, integration, and final verification."
+config_file = "agents/spec-coordinator.toml"
+
+[agents.backend-builder]
+description = "Implements one bounded PennyWorth backend task from a specification and reports verification evidence."
+config_file = "agents/backend-builder.toml"
+
+[agents.backend-reviewer]
+description = "Reviews PennyWorth backend task changes for correctness, security, reliability, tests, and specification traceability."
+config_file = "agents/backend-reviewer.toml"
+
+[agents.documentation-editor]
+description = "Maintains PennyWorth specifications, task breakdowns, and build documentation without implementing application code."
+config_file = "agents/documentation-editor.toml"
