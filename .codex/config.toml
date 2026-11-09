@@ -1,0 +1,11 @@
+[agents]
+max_concurrent_threads_per_session = 3
+max_depth = 1
+
+[agents.frontend-builder]
+description = "Implements a bounded PennyWorth frontend task within explicit file ownership and reports verification evidence."
+config_file = "agents/frontend-builder.toml"
+
+[agents.frontend-reviewer]
+description = "Independently reviews PennyWorth frontend work for correctness, accessibility, consistency, and integration risks without editing by default."
+config_file = "agents/frontend-reviewer.toml"
