@@ -1,18 +1,92 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useState } from "react";
+import { FormEvent, Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { useApi } from "@/lib/api";
+import { ActivityTimeline, ApprovalProgress, AssessmentCriterion, ClaimSummary, DataState, PageHeader, StatusBadge } from "@/components/claim-components";
+import { useSession } from "@/components/providers";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { money } from "@/lib/types";
+import { useActionMutation, useReviewQuery } from "@/lib/store";
 
-interface Citation { chunk_id:string; title:string; quote:string; policy_version?:string; }
-interface Criterion { name:string; status:string; explanation:string; citations:Citation[]; }
-interface ReviewDetail { claim:{id:string;order_id:string;claim_type?:string;requested_amount:string;currency:string;status?:string}; assessment:{summary:string;proposed_refund_amount:string;confidence:number;criteria:Criterion[]}; approval_count?:number; }
-function ReviewContent(){
- const {request}=useApi();const params=useSearchParams();const claimId=params.get("claimId")??"";const [review,setReview]=useState<ReviewDetail|null>(null);const [message,setMessage]=useState("");const [rationale,setRationale]=useState("");const [decision,setDecision]=useState<"approve"|"reject"|null>(null);const [busy,setBusy]=useState(false);
- useEffect(()=>{if(claimId)request<ReviewDetail>(`/v1/reviews/${claimId}`).then(setReview).catch(e=>setMessage(e instanceof Error?e.message:"Assessment unavailable"))},[claimId,request]);
- const proposed=Number(review?.assessment.proposed_refund_amount??0);const needsTwo=proposed>500;const validSources=Boolean(review?.assessment.criteria.length)&&review?.assessment.criteria.every(c=>c.citations?.length>0&&c.citations.every(x=>Boolean(x.quote?.trim())&&x.policy_version==="2026-01"));
- async function decide(event:FormEvent){event.preventDefault();if(!decision||busy)return;if(rationale.trim().length<3){setMessage("Add a reviewer rationale of at least three characters before recording a decision.");setDecision(null);return}setBusy(true);setMessage("");try{await request(`/v1/reviews/${claimId}/decision`,{method:"POST",body:JSON.stringify({decision,comment:rationale})});const refreshed=await request<ReviewDetail>(`/v1/reviews/${claimId}`);setReview(refreshed);setMessage(decision==="approve"&&needsTwo?`Approval recorded: ${Math.min(refreshed.approval_count??1,2)} of 2. Payment: Not submitted.`:"Decision recorded. Authoritative claim status refreshed.");setDecision(null)}catch(err){setMessage(err instanceof Error?`${err.message}. Refresh the claim before trying again.`:"Decision could not be recorded. Refresh the claim before trying again.")}finally{setBusy(false)}}
- return <AppShell>{!review?<section className="surface" role={message?"alert":"status"}>{message||"Loading assessment…"}</section>:<><h1 className="page-title">Review {review.claim.id}</h1><p className="page-subtitle">{review.claim.order_id} · {(review.claim.claim_type??"Claim").replaceAll("_"," ")} · Policy 2026-01</p><div className="review-grid"><section className="surface review-workspace"><h2 className="section-title" style={{color:"#6653ec"}}>Assessment · AI-assisted</h2><p>Requested CAD {Number(review.claim.requested_amount).toFixed(2)}<br/>Proposed CAD {proposed.toFixed(2)}</p><p className="helper">AI assessment is advice only. A human reviewer makes the decision.</p>{needsTwo&&<p className="alert">Two distinct reviewer identities are required for proposals above CAD 500.00. Current approvals: {review.approval_count??0} of 2. Payment: Not submitted.</p>}<div style={{marginTop:22}}>{review.assessment.criteria.map(c=><article className="criterion" key={c.name}><h3 style={{margin:"0 0 6px",fontWeight:500}}>{c.name} · {c.status}</h3><p style={{margin:"0 0 8px"}}>{c.explanation}</p>{c.citations?.map(src=><details key={src.chunk_id}><summary>{src.title} · {src.chunk_id}</summary><blockquote className="helper">{src.quote||"The authoritative source passage is unavailable."}</blockquote><span className="helper">Policy version: {src.policy_version||"Unverified"}</span></details>)}</article>)}</div>{!validSources&&<p className="alert" style={{marginTop:18}}>Positive policy assertions are blocked because one or more citations are missing, stale or unsupported. Verify the source passage with the policy owner.</p>}<form onSubmit={e=>{e.preventDefault();setDecision("approve")}} style={{marginTop:"auto",paddingTop:22}}><label className="field">Reviewer rationale<textarea required minLength={3} value={rationale} onChange={e=>setRationale(e.target.value)} placeholder="Explain your decision and evidence references."/></label><div className="button-row"><button type="button" className="button danger" onClick={()=>setDecision("reject")}>Reject claim</button><button className="button" disabled={!validSources}>Record approval</button></div></form></section><aside className="surface"><h2 className="section-title">Inspectable sources</h2><div className="source-list">{review.assessment.criteria.flatMap(c=>c.citations??[]).map(src=><div key={src.chunk_id}><strong>{src.title||src.chunk_id}</strong><p className="helper">{src.quote?"Source passage available":"Passage unavailable"}</p></div>)}</div><p className="source-note">Policy version 2026-01<br/>Check every passage against the authoritative policy record.</p></aside></div>{message&&<p className="surface" role="status" aria-live="polite">{message}</p>}{decision&&<div className="modal-backdrop" role="presentation"><section className="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title"><h2 className="section-title" id="confirm-title">Confirm {decision===`approve`?"approval":"rejection"}</h2><p>Record this {decision} decision for claim {review.claim.id}? Your rationale will be saved for the review record.</p>{needsTwo&&decision==="approve"&&<p className="alert">This is the first approval step when applicable. Two distinct reviewers are required; no payment will be submitted yet.</p>}<div className="button-row"><button className="button secondary" onClick={()=>setDecision(null)}>Go back</button><button className={`button ${decision==="reject"?"danger":""}`} disabled={busy||(!validSources&&decision==="approve")} onClick={decide as never}>{busy?"Recording…":"Confirm decision"}</button></div></section></div>}</>}</AppShell>
+type DemoPreview = { id: string; kind: "receipt" | "photo" } | null;
+
+function paymentState(status: string) {
+  if (status === "refunded") return "Refund confirmed";
+  if (status === "refund_submitted") return "Refund processing";
+  if (status === "refund_failed") return "Refund failed - requires operations follow-up";
+  if (status === "approved") return "Approved - payment has not been submitted";
+  return "No payment action recorded";
 }
-export default function ReviewPage(){return <Suspense fallback={<AppShell><p>Loading assessment…</p></AppShell>}><ReviewContent/></Suspense>}
+
+function ReviewContent() {
+  const params = useSearchParams();
+  const session = useSession();
+  const claimId = params.get("claimId") ?? "";
+  const [rationale, setRationale] = useState("");
+  const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
+  const [preview, setPreview] = useState<DemoPreview>(null);
+  const [message, setMessage] = useState("");
+  const reviewResult = useReviewQuery(
+    { mode: session.mode, role: session.role, accountKey: session.accountKey, path: `/v1/reviews/${encodeURIComponent(claimId)}` },
+    { skip: !claimId || session.role === "Customer", pollingInterval: 15_000 },
+  );
+  const [act, actionResult] = useActionMutation();
+  const review = reviewResult.currentData;
+  const requiredApprovals = review?.assessment.requires_two_reviewers ? 2 : 1;
+  const hasSources = Boolean(review?.assessment.criteria.length && review.assessment.criteria.every(criterion => criterion.citations.some(citation => citation.quote.trim() && citation.policy_version.trim())));
+  const alreadyDecided = Boolean(review?.approvals.some(approval => approval.reviewer_id === session.userId));
+  const canDecide = Boolean(review && review.claim.status === "pending_approval" && !alreadyDecided && rationale.trim().length >= 3 && rationale.trim().length <= 2000 && !actionResult.isLoading);
+  const evidenceIds = useMemo(() => [...new Set(review?.assessment.criteria.flatMap(criterion => criterion.evidence_document_ids) ?? [])], [review]);
+  const citations = useMemo(() => {
+    const seen = new Set<string>();
+    return (review?.assessment.criteria.flatMap(criterion => criterion.citations) ?? []).filter(citation => {
+      const key = `${citation.policy_id}:${citation.policy_version}:${citation.chunk_id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [review]);
+  const closeDecision = (open: boolean) => { if (!open && !actionResult.isLoading) setDecision(null); };
+
+  async function confirm(event: FormEvent) {
+    event.preventDefault();
+    if (!decision || !review || !canDecide || (decision === "approve" && !hasSources)) return;
+    setMessage("");
+    try {
+      await act({ mode: session.mode, role: session.role, accountKey: session.accountKey, path: `/v1/reviews/${encodeURIComponent(claimId)}/decision`, init: { method: "POST", body: JSON.stringify({ decision, comment: rationale.trim() }) } }).unwrap();
+      await reviewResult.refetch();
+      setMessage(decision === "approve" ? "Approval recorded. The claim and payment state above remain authoritative." : "Rejection recorded. The claim state above has been refreshed.");
+      setDecision(null);
+      setRationale("");
+    } catch (error) {
+      const detail = typeof error === "object" && error && "message" in error ? String(error.message) : String(error);
+      setMessage(`${detail} Refresh the assessment before retrying.`);
+    }
+  }
+
+  if (session.role === "Customer") return <section className="surface" role="alert"><h1 className="section-title">Reviewer access required</h1><p className="helper">This claim assessment is restricted to staff.</p></section>;
+  if (!claimId) return <section className="error-summary" role="alert"><h1 className="section-title">Choose a claim to review</h1><p>Open a claim from the review queue to inspect its assessment.</p></section>;
+
+  return <DataState loading={reviewResult.isLoading || (reviewResult.isFetching && !review)} error={reviewResult.error} onRetry={reviewResult.refetch}>{review && <>
+    <PageHeader title={`Review ${review.claim.id}`} description={`${review.claim.order_id} · Submitted ${new Date(review.claim.created_at).toLocaleDateString("en-CA")}`} />
+    {session.mode === "demo" && <p className="notice">Demo assessment and evidence previews are synthetic. They do not represent a live evidence-preview service.</p>}
+    {message && <p className="surface" role="status" aria-live="polite">{message}</p>}
+    <div className="review-grid"><section className="surface review-workspace">
+      <div className="page-header"><div><p className="eyebrow">AI-ASSISTED ASSESSMENT</p><h2 className="section-title">{review.assessment.eligible ? "Assessment supports eligibility" : "Assessment needs review"}</h2></div><StatusBadge status={review.claim.status} /></div>
+      <p>{review.assessment.summary}</p>
+      <dl className="detail-grid"><div><dt>Requested</dt><dd>{money(review.claim.requested_amount, review.claim.currency)}</dd></div><div><dt>Proposed</dt><dd>{money(review.assessment.proposed_refund_amount, review.claim.currency)}</dd></div><div><dt>Assessment confidence</dt><dd>{Math.round(review.assessment.confidence * 100)}%</dd></div><div><dt>Payment state</dt><dd>{paymentState(review.claim.status)}</dd></div></dl>
+      <p className="helper">Assessment is advisory. A human reviewer records the decision after inspecting the source passages.</p>
+      {review.assessment.criteria.map(criterion => <AssessmentCriterion key={criterion.name} criterion={criterion} />)}
+      {!hasSources && <p className="alert">Approval is disabled because a policy citation is missing its supporting passage or version. Confirm the authoritative policy source first.</p>}
+      {alreadyDecided && <p className="notice">You have already recorded a decision. A distinct reviewer identity is required for another approval.</p>}
+      {review.claim.status !== "pending_approval" && <p className="notice">This claim is not awaiting a reviewer decision. Its current status is authoritative.</p>}
+      <form onSubmit={event => { event.preventDefault(); if (canDecide && hasSources) setDecision("approve"); }}><label className="field">Reviewer rationale<textarea required minLength={3} maxLength={2000} value={rationale} onChange={event => setRationale(event.target.value)} placeholder="Explain the evidence and policy basis for your decision." /></label><div className="button-row"><Button type="button" variant="destructive" disabled={!canDecide} onClick={() => setDecision("reject")}>Reject claim</Button><Button disabled={!canDecide || !hasSources}>Record approval</Button></div></form>
+    </section><aside className="surface"><h2 className="section-title">Case context</h2><ClaimSummary claim={review.claim} /><h3 className="section-title" style={{ marginTop: 24 }}>Approval history</h3><ApprovalProgress approvals={review.approvals} required={requiredApprovals} />{review.approvals.length ? <ActivityTimeline items={review.approvals.map(approval => ({ title: `${approval.reviewer_name} ${approval.decision === "approve" ? "approved" : "rejected"}`, description: approval.comment }))} /> : <p className="helper">No decisions have been recorded.</p>}<h3 className="section-title" style={{ marginTop: 24 }}>Evidence</h3>{evidenceIds.length ? <ul className="file-list">{evidenceIds.map((id, index) => <li className="file-row" key={id}><span><strong>{id}</strong><br /><span className="helper">{session.mode === "demo" ? "Synthetic evidence reference" : "Reference supplied by the assessment"}</span></span>{session.mode === "demo" && <Button variant="secondary" type="button" onClick={() => setPreview({ id, kind: index % 2 ? "photo" : "receipt" })}>Preview</Button>}</li>)}</ul> : <p className="helper">No evidence references were returned with this assessment.</p>}<h3 className="section-title" style={{ marginTop: 24 }}>Policy sources</h3>{citations.map(source => <details key={`${source.policy_id}:${source.policy_version}:${source.chunk_id}`}><summary>{source.title} · {source.policy_version}</summary><blockquote>{source.quote}</blockquote><p className="helper">Source: {source.chunk_id}</p></details>)}</aside></div>
+    <Dialog open={Boolean(decision)} onOpenChange={closeDecision}><DialogContent><DialogTitle>Confirm {decision === "approve" ? "approval" : "rejection"}</DialogTitle><DialogDescription>This will record your rationale in the review history.</DialogDescription><form onSubmit={confirm}><p>{decision === "approve" && requiredApprovals === 2 ? "Two distinct reviewers are required. This approval does not submit a payment." : "The workflow will determine the authoritative next claim state."}</p><div className="button-row"><Button variant="secondary" type="button" disabled={actionResult.isLoading} onClick={() => setDecision(null)}>Go back</Button><Button variant={decision === "reject" ? "destructive" : "default"} disabled={!canDecide || (decision === "approve" && !hasSources)}>{actionResult.isLoading ? "Recording..." : `Confirm ${decision}`}</Button></div></form></DialogContent></Dialog>
+    <Dialog open={Boolean(preview)} onOpenChange={open => !open && setPreview(null)}><DialogContent><DialogTitle>Synthetic {preview?.kind === "receipt" ? "receipt" : "photo evidence"}</DialogTitle><DialogDescription>Demo-only evidence preview for {preview?.id}. It is not fetched from a live service.</DialogDescription>{preview?.kind === "receipt" ? <section className="surface"><p><strong>Order confirmation</strong></p><p>Order: {review.claim.order_id}</p><p>Claim reference: {review.claim.id}</p><p>Amount: {money(review.claim.requested_amount, review.claim.currency)}</p><p className="helper">Synthetic receipt generated for the demo scenario.</p></section> : <section className="surface"><div aria-label="Synthetic item photo evidence" style={{ aspectRatio: "4 / 3", background: "linear-gradient(135deg, #dbeafe, #f5f5f5)", display: "grid", placeItems: "center", borderRadius: 6 }}><svg viewBox="0 0 320 240" role="img" aria-label="Synthetic parcel with a damaged corner" style={{width:"100%",maxHeight:240}}><rect width="320" height="240" fill="#f5f5f5"/><path d="M70 80 L190 50 L260 100 L140 132 Z" fill="#d5b68c" stroke="#785b39" strokeWidth="2"/><path d="M70 80 L140 132 L140 210 L70 160 Z" fill="#ba9563" stroke="#785b39" strokeWidth="2"/><path d="M140 132 L260 100 L260 178 L140 210 Z" fill="#dfc49e" stroke="#785b39" strokeWidth="2"/><path d="M230 107 L240 128 L226 143 L250 154 L235 185" fill="none" stroke="#991b1b" strokeWidth="4"/><text x="20" y="225" fontFamily="Arial" fontSize="12" fill="#525252">Demo evidence: damaged parcel corner</text></svg></div><p className="helper">Synthetic illustration of the reported parcel damage for inspection.</p></section>}<div className="button-row"><Button type="button" onClick={() => setPreview(null)}>Close preview</Button></div></DialogContent></Dialog>
+  </>}</DataState>;
+}
+
+export default function ReviewDetailPage() { return <AppShell><Suspense fallback={<section className="surface" role="status">Loading assessment...</section>}><ReviewContent /></Suspense></AppShell>; }

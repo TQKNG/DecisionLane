@@ -1,17 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { ClaimRow } from "@/components/claims-table";
-import { useApi } from "@/lib/api";
+import { DataState, PageHeader } from "@/components/claim-components";
+import { ClaimsTable } from "@/components/claims-table";
+import { useSession } from "@/components/providers";
+import { Button } from "@/components/ui/button";
+import { useClaimsQuery } from "@/lib/store";
 
 export default function ClaimsPage() {
-  const { request } = useApi();
-  const [claims, setClaims] = useState<ClaimRow[]>([]);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    request<ClaimRow[]>("/v1/claims").then(setClaims).catch((value) => setError(String(value)));
-  }, [request]);
-  return <AppShell><div style={{display:"flex",justifyContent:"space-between",alignItems:"start",gap:16}}><div><h1 className="page-title">My claims</h1><p className="page-subtitle">Follow the status of your refund claims.</p></div><a className="button" href="/claims/new/issue">New refund claim</a></div>{error ? <section className="surface" role="alert"><h2 className="section-title">Claims are unavailable</h2><p>{error}</p><button className="button secondary" onClick={()=>request<ClaimRow[]>("/v1/claims").then(setClaims).catch(value=>setError(String(value)))}>Try again</button></section> : claims.length===0?<><section className="surface empty"><h2 className="section-title">No claims yet</h2><p className="helper">Your submitted claims will appear here. Start with an order and describe what went wrong.</p></section><section className="surface"><h2 className="section-title">How it works</h2><p className="helper">Submit order details and evidence, then follow each status update. Every refund decision is reviewed by a person.</p></section></>:<div className="claims-list">{claims.map(claim=><a key={claim.id} className="claim-card" href={`/claims/detail?claimId=${encodeURIComponent(claim.id)}`}><div><h2>{claim.id} · {claim.order_id}</h2><p>{claim.claim_type.replaceAll("_"," ")} · Requested CAD {Number(claim.requested_amount).toFixed(2)}</p></div><span className="status">{claim.status.replaceAll("_"," ")}</span></a>)}</div>}</AppShell>;
+  const session = useSession();
+  const [status, setStatus] = useState("all");
+  const args = useMemo(() => ({ mode: session.mode, role: session.role, accountKey: session.accountKey, path: status === "all" ? "/v1/claims" : `/v1/claims?status=${encodeURIComponent(status)}` }), [session.accountKey, session.mode, session.role, status]);
+  const query = useClaimsQuery(args);
+  const customer = session.role === "Customer";
+  return <AppShell><PageHeader title={customer ? "My claims" : "Claims"} description={customer ? "Track your refund requests and see what happens next." : "Claims visible to your assigned workspace."} action={customer ? <Button asChild><Link href="/claims/new/issue">Start a claim</Link></Button> : undefined}/>
+    <div className="filters"><label className="field">Status<select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option><option value="needs_information">Needs information</option><option value="pending_approval">Awaiting approval</option><option value="processing">Processing</option><option value="refund_failed">Refund failed</option><option value="refunded">Refunded</option></select></label></div>
+    <DataState loading={query.isLoading || (query.isFetching && !query.currentData)} error={query.error} empty={!query.isLoading && !query.error && !query.currentData?.length} onRetry={query.refetch}>{query.currentData && <ClaimsTable claims={query.currentData} reviewMode={!customer}/>}</DataState>
+    {!query.isLoading && !query.error && !query.currentData?.length && customer && <section className="surface"><h2 className="section-title">How claims work</h2><p className="helper">Tell us what happened, add supporting evidence, then follow the review. A human reviews every refund decision.</p></section>}
+  </AppShell>;
 }
