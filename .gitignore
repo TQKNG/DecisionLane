@@ -18,3 +18,4 @@ frontend/.env.local
 local.settings.json
 .azure/
 infra/what-if.txt
+/graphify-out/
