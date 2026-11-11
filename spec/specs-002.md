@@ -122,7 +122,7 @@ export CONTENT_UNDERSTANDING_ENDPOINT=$(az cognitiveservices account show \
 printf '%s\n' "$CONTENT_UNDERSTANDING_ENDPOINT"
 ~~~
 
-Create an analyzer named refund-evidence-classifier in Content Understanding Studio or through the REST API.
+Create an analyzer named refund_evidence_classifier in Content Understanding Studio or through the REST API.
 Include an explicit other category so unrelated files are not forced into a valid category.
 
 ~~~bash
@@ -132,7 +132,7 @@ export CU_TOKEN=$(az account get-access-token \
   -o tsv)
 
 curl -sS -X PUT \
-  "\${CONTENT_UNDERSTANDING_ENDPOINT}/contentunderstanding/analyzers/refund-evidence-classifier?api-version=\${CONTENT_UNDERSTANDING_API_VERSION}" \
+  "\${CONTENT_UNDERSTANDING_ENDPOINT}/contentunderstanding/analyzers/refund_evidence_classifier?api-version=\${CONTENT_UNDERSTANDING_API_VERSION}" \
   -H "Authorization: Bearer $CU_TOKEN" \
   -H "Content-Type: application/json" \
   --data @infra/refund-evidence-classifier.json
@@ -148,7 +148,7 @@ Add these settings to backend/src/refundflow/config.py:
 
 ~~~python
 content_understanding_endpoint: str = ""
-content_understanding_analyzer_id: str = "refund-evidence-classifier"
+content_understanding_analyzer_id: str = "refund_evidence_classifier"
 content_understanding_api_version: str = "2025-11-01"
 ~~~
 
@@ -157,7 +157,7 @@ Do not edit infra/main.json manually because it is generated from Bicep.
 
 ~~~bicep
 { name: 'CONTENT_UNDERSTANDING_ENDPOINT', value: foundryResourceEndpoint }
-{ name: 'CONTENT_UNDERSTANDING_ANALYZER_ID', value: 'refund-evidence-classifier' }
+{ name: 'CONTENT_UNDERSTANDING_ANALYZER_ID', value: 'refund_evidence_classifier' }
 { name: 'CONTENT_UNDERSTANDING_API_VERSION', value: '2025-11-01' }
 ~~~
 

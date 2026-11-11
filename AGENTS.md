@@ -62,6 +62,7 @@ After modifying code, run graphify update . from the repository root.
 
 ## Spec-driven work
 
+DO NOT IMPLEMENT below
 Read the relevant spec/<spec>.md and tasks/<spec-slug>/tasks.md before implementation.
 Implement only an unchecked task whose dependencies are complete.
 Read the assigned task.md, relevant nested AGENTS.md files, and the current implementation of owned files before editing.
