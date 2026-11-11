@@ -1,0 +1,109 @@
+{
+	"analyzerId": "refund_evidence_image_classifier",
+	"description": "Classifies RefundFlow image evidence into receipts, invoices, order confirmations, tracking evidence, damage photos, product photos, package labels, unreadable images, and other content. For damage photos, determines whether the product is shown and whether visible physical damage is present, with image quality, confidence, and reviewer-readable reasoning. Describes visible evidence only and does not infer causation, eligibility, or refund approval.",
+	"createdAt": "2026-11-11T04:02:26Z",
+	"lastModifiedAt": "2026-11-11T04:02:26Z",
+	"baseAnalyzerId": "prebuilt-image",
+	"config": {
+		"returnDetails": false,
+		"enableOcr": false,
+		"disableFaceBlurring": false
+	},
+	"warnings": [],
+	"status": "ready",
+	"processingLocation": "geography",
+	"supportedModels": {
+		"completion": [
+			"gpt-4o",
+			"gpt-4o-mini",
+			"gpt-4.1",
+			"gpt-4.1-mini",
+			"gpt-4.1-nano",
+			"gpt-5",
+			"gpt-5-mini",
+			"gpt-5-nano",
+			"gpt-5.1",
+			"gpt-5.2",
+			"gpt-5.4",
+			"gpt-5.4-mini",
+			"gpt-5.5",
+			"gpt-5.6-sol",
+			"gpt-5.6-terra",
+			"gpt-5.6-luna",
+			"gpt-6-astra",
+			"gpt-6-luna",
+			"gpt-6-sol",
+			"gpt-6.1-sol"
+		]
+	},
+	"models": {
+		"completion": "gpt-5.1"
+	},
+	"fieldSchema": {
+		"fields": {
+			"evidence_type": {
+				"type": "string",
+				"method": "classify",
+				"description": "Classify the image into exactly one supported evidence category. Use damage_photo only when the product or packaging is shown as damage evidence. Use product_photo for an undamaged or general product image. Use unreadable when the image cannot be reliably interpreted. Use other for unrelated content.",
+				"enum": [
+					"receipt",
+					"invoice",
+					"order_confirmation",
+					"tracking_evidence",
+					"damage_photo",
+					"product_photo",
+					"package_label",
+					"unreadable",
+					"other"
+				],
+				"enumDescriptions": {
+					"receipt": "",
+					"invoice": "",
+					"order_confirmation": "",
+					"tracking_evidence": "",
+					"damage_photo": "",
+					"product_photo": "",
+					"package_label": "",
+					"unreadable": "",
+					"other": ""
+				}
+			},
+			"shows_product": {
+				"type": "boolean",
+				"method": "generate",
+				"description": "Return true only when the claimed product or item is visibly present."
+			},
+			"damage_visible": {
+				"type": "boolean",
+				"method": "generate",
+				"description": "Return true only when physical damage is visibly present. Do not infer causation, eligibility, or fault."
+			},
+			"damage_type": {
+				"type": "string",
+				"method": "generate",
+				"description": "Describe the visible damage type. Return null when no damage is visible or the image is not a damage photo."
+			},
+			"image_quality": {
+				"type": "string",
+				"method": "classify",
+				"description": "Rate the image as good, fair, poor, or unreadable for human review.",
+				"enum": [
+					"category1"
+				],
+				"enumDescriptions": {
+					"category1": ""
+				}
+			},
+			"confidence": {
+				"type": "number",
+				"method": "generate",
+				"description": "Return a number from 0 to 1 representing confidence in the classification and visible-damage assessment."
+			},
+			"reason": {
+				"type": "string",
+				"method": "generate",
+				"description": "Briefly explain the visible features supporting the classification. Do not infer refund eligibility or approval."
+			}
+		}
+	}
+}

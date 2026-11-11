@@ -1,0 +1,109 @@
+{
+	"analyzerId": "refund_evidence_document_classifier",
+	"description": "Classifies RefundFlow PDF evidence into receipts, invoices, order confirmations, tracking evidence, unreadable documents, and other content.",
+	"createdAt": "2026-11-11T03:58:30Z",
+	"lastModifiedAt": "2026-11-11T03:58:30Z",
+	"baseAnalyzerId": "prebuilt-document",
+	"config": {
+		"returnDetails": false,
+		"enableOcr": true,
+		"enableLayout": true,
+		"enableFormula": true,
+		"enableFigureDescription": false,
+		"enableFigureAnalysis": false,
+		"chartFormat": "chartjs",
+		"tableFormat": "html",
+		"enableSegment": false,
+		"omitContent": false,
+		"segmentPerPage": false,
+		"annotationFormat": "markdown"
+	},
+	"warnings": [],
+	"status": "ready",
+	"processingLocation": "geography",
+	"supportedModels": {
+		"completion": [
+			"gpt-4o",
+			"gpt-4o-mini",
+			"gpt-4.1",
+			"gpt-4.1-mini",
+			"gpt-4.1-nano",
+			"gpt-5",
+			"gpt-5-mini",
+			"gpt-5-nano",
+			"gpt-5.1",
+			"gpt-5.2",
+			"gpt-5.4",
+			"gpt-5.4-mini",
+			"gpt-5.5",
+			"gpt-5.6-sol",
+			"gpt-5.6-terra",
+			"gpt-5.6-luna",
+			"gpt-6-astra",
+			"gpt-6-luna",
+			"gpt-6-sol",
+			"gpt-6.1-sol"
+		],
+		"embedding": [
+			"text-embedding-3-small",
+			"text-embedding-3-large",
+			"text-embedding-ada-002"
+		]
+	},
+	"models": {
+		"completion": "gpt-4.1-mini",
+		"embedding": "text-embedding-3-large"
+	},
+	"fieldSchema": {
+		"fields": {
+			"evidence_type": {
+				"type": "string",
+				"method": "classify",
+				"description": "Classify the document into exactly one category. Use unreadable when the content cannot be reliably interpreted. Use other when it is unrelated to supported RefundFlow evidence.",
+				"enum": [
+					"receipt",
+					"invoice",
+					"order_confirmation",
+					"tracking_evidence",
+					"unreadable",
+					"other"
+				],
+				"enumDescriptions": {
+					"receipt": "",
+					"invoice": "",
+					"order_confirmation": "",
+					"tracking_evidence": "",
+					"unreadable": "",
+					"other": ""
+				}
+			},
+			"confidence": {
+				"type": "number",
+				"method": "generate",
+				"description": "Return a number from 0 to 1 representing confidence in the document classification."
+			},
+			"image_quality": {
+				"type": "string",
+				"method": "classify",
+				"description": "Rate the readability of the document as good, fair, poor, or unreadable.",
+				"enum": [
+					"good",
+					"fair",
+					"poor",
+					"unreadable"
+				],
+				"enumDescriptions": {
+					"good": "",
+					"fair": "",
+					"poor": "",
+					"unreadable": ""
+				}
+			},
+			"reason": {
+				"type": "string",
+				"method": "generate",
+				"description": "Explain briefly which visible or readable document features support the classification. Do not infer refund eligibility, causation, or approval."
+			}
+		}
+	}
+}
