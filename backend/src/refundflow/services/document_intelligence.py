@@ -9,24 +9,17 @@ from azure.core.credentials_async import AsyncTokenCredential
 from PIL import Image
 
 from refundflow.domain.models import ExtractedDocument, SafetyAnalysis
+from refundflow.services.file_validation import validate_uploaded_file
 
 
-def validate_file(content:bytes, content_type:str) -> int:
-    if len(content) > 4*1024*1024:
-        raise ValueError("File exceeds the 4MB limit")
+def validate_file(content: bytes, content_type: str) -> int:
+    validate_uploaded_file(content, content_type)
+
     if content_type == "application/pdf":
-        if not content.startswith(b"%PDF"):
-            raise ValueError("File content is not a PDF")
         document = pdfium.PdfDocument(content)
-        page_count = len(document)
-        if page_count <1 or page_count >2:
-            raise ValueError("PDF files must contain one or two pages")
-        return page_count
-    if content_type in {"image/jpeg", "image/png", "image/webp"}:
-        with Image.open(BytesIO(content))as image:
-            image.verify()
-        return 1
-    raise ValueError("Unsupported content type")
+        return len(document)
+
+    return 1
 
 class DocumentExtractionService:
     def __init__(self, endpoint: str, credential: AsyncTokenCredential) -> None:

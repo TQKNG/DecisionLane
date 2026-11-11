@@ -45,6 +45,13 @@ class DocumentProcessingStatus(StrEnum):
     EXTRACTION_COMPLETE = 'extraction_complete'
     PROCESSING_FAILED = 'processing_failed'
 
+
+class UploadVerificationStatus(StrEnum):
+    PENDING = "pending"
+    VERIFIED = "verified"
+    REJECTED = "rejected"
+
+
 class SafetyDecision(StrEnum):
     PASS = 'pass'
     REVIEW = 'review'
@@ -57,12 +64,19 @@ class CriterionStatus(StrEnum):
 
 class ClaimDocument(BaseModel):
     id: str
-    claim_id:str
-    file_name:str
-    content_type:str
+    claim_id: str
+    file_name: str
+    content_type: str
     size_bytes: int
-    blob_name:str
-    status:DocumentProcessingStatus =DocumentProcessingStatus.UPLOADED
+    blob_name: str
+    status: DocumentProcessingStatus = DocumentProcessingStatus.UPLOADED
+
+    upload_verification_status: UploadVerificationStatus = (
+        UploadVerificationStatus.PENDING
+    )
+    verified_at: datetime | None = None
+    content_sha256: str | None = None
+
     created_at: datetime = Field(default_factory=utc_now)
 
 class RefundClaim(BaseModel):

@@ -60,3 +60,12 @@ class BlobStorageService:
             self._container,
             blob_name,
         ).get_blob_properties()
+
+
+    async def download_content(self, blob_name: str) -> bytes:
+        downloader = await self._client.get_blob_client(
+            self._container,
+            blob_name,
+        ).download_blob(max_concurrency=1)
+
+        return await downloader.readall()

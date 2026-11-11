@@ -12,21 +12,32 @@ from refundflow.domain.models import OrderRecord
 class OrderRepository(Protocol):
     async def get_order(self, customer_id: str, order_id: str) -> OrderRecord | None: ...
 
+    async def create_order(self, order: OrderRecord) -> OrderRecord: ...
+
 
 class InMemoryOrderRepository:
     def __init__(self) -> None:
-        self._order = OrderRecord(
-            id="order-1001",
-            customer_id="local-customer",
-            currency="CAD",
-            paid_amount=Decimal("129.99"),
-            payment_intent_id="pi_local_test",
-        )
+        self._orders: dict[str, OrderRecord] = {
+            "order-1001": OrderRecord(
+                id="order-1001",
+                customer_id="local-customer",
+                currency="CAD",
+                paid_amount=Decimal("129.99"),
+                payment_intent_id="pi_local_test",
+            )
+        }
 
     async def get_order(self, customer_id: str, order_id: str) -> OrderRecord | None:
-        if self._order.customer_id == customer_id and self._order.id == order_id:
-            return self._order
-        return None
+        order = self._orders.get(order_id)
+        if order is None or order.customer_id != customer_id:
+            return None
+        return order.model_copy(deep=True)
+
+    async def create_order(self, order: OrderRecord) -> OrderRecord:
+        if order.id in self._orders:
+            raise ValueError(f"Order {order.id} already exists")
+        self._orders[order.id] = order.model_copy(deep=True)
+        return order
 
 
 class CosmosOrderRepository:
@@ -51,6 +62,10 @@ class CosmosOrderRepository:
 
     async def upsert_order(self, order: OrderRecord) -> None:
         await self._container.upsert_item(order.model_dump(mode="json"))
+
+    async def create_order(self, order: OrderRecord) -> OrderRecord:
+        await self._container.create_item(order.model_dump(mode="json"))
+        return order
 
     async def close(self) -> None:
         await self._client.close()

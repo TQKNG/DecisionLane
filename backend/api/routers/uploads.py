@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
+from datetime import datetime
+from hashlib import sha256
+from pathlib import PurePosixPath
+
 import httpx
 from azure.identity.aio import DefaultAzureCredential
 from fastapi import APIRouter, Depends, HTTPException, Path, status
@@ -16,13 +20,16 @@ from refundflow.domain.models import (
     ClaimDocument,
     ClaimStatus,
     RefundClaim,
+    UploadVerificationStatus
 )
+from refundflow.services.file_validation import validate_uploaded_file
 from refundflow.repositories.claims import ClaimRepository
 from refundflow.services.blob_storage import (
     MAX_FILE_BYTES,
     MAX_FILES_PER_CLAIM,
     BlobStorageService,
 )
+from refundflow.domain.models import utc_now
 
 router = APIRouter(prefix="/v1/claims", tags=["uploads"])
 
@@ -59,7 +66,7 @@ class UploadGrant(BaseModel):
 
 
 class UploadCompleteResponse(BaseModel):
-    status: Literal["uploaded"]
+    status: Literal["verified"]
     document_id: str
 
 
@@ -94,6 +101,22 @@ async def get_owned_claim(
         raise HTTPException(status_code=404, detail="Claim not found")
     return claim
 
+def blob_belongs_to_document(
+    blob_name: str,
+    customer_id: str,
+    claim_id: str,
+    document_id: str,
+) -> bool:
+    path = PurePosixPath(blob_name)
+
+    if len(path.parts) != 3:
+        return False
+
+    owner_id, blob_claim_id, file_name = path.parts
+    if owner_id != customer_id or blob_claim_id != claim_id:
+        return False
+
+    return PurePosixPath(file_name).stem == document_id   
 
 @router.post(
     "/{claim_id}/uploads",
@@ -158,35 +181,101 @@ async def request_upload(
     response_model=UploadCompleteResponse,
     status_code=status.HTTP_202_ACCEPTED,
     operation_id="complete_claim_upload",
-    summary="Confirm an evidence upload",
+    summary="Verify an evidence upload",
     description=(
-        "For the owning Customer, verifies the uploaded Blob size and content type "
-        "against the original upload request."
+        "For the owning Customer, verifies the uploaded Blob size, content type, "
+        "file signature, and file structure before marking the document as verified."
     ),
     responses=error_responses(400, 401, 403, 404),
 )
 async def complete_upload(
     claim_id: Annotated[str, Path(description="Unique identifier of the claim.")],
-    document_id: Annotated[str, Path(description="Unique identifier of the uploaded document.")],
+    document_id: Annotated[
+        str,
+        Path(description="Unique identifier of the uploaded document."),
+    ],
     user: Annotated[CurrentUser, Depends(require_roles("Customer"))],
     repository: ClaimRepositoryDep,
     blob_service: BlobStorageServiceDep,
 ) -> UploadCompleteResponse:
     await get_owned_claim(claim_id, user, repository)
+
     documents = await repository.list_items(claim_id, "document")
     item = next(
-        (value for value in documents if value.payload.get("id") == document_id),
+        (
+            value
+            for value in documents
+            if value.payload.get("id") == document_id
+        ),
         None,
     )
+
     if item is None:
         raise HTTPException(status_code=404, detail="Document not found")
+
     document = ClaimDocument.model_validate(item.payload)
+
+    # Repeated completion calls are idempotent.
+    if (
+        document.upload_verification_status
+        == UploadVerificationStatus.VERIFIED
+    ):
+        return UploadCompleteResponse(
+            status="verified",
+            document_id=document_id,
+        )
+
+    if not blob_belongs_to_document(
+        document.blob_name,
+        user.user_id,
+        claim_id,
+        document_id,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded Blob does not belong to this document",
+        )
+
     properties = await blob_service.get_blob_properties(document.blob_name)
+    actual_content_type = properties.content_settings.content_type
+
     if properties.size != document.size_bytes:
-        raise HTTPException(status_code=400, detail="Uploaded size does not match request")
-    if properties.content_settings.content_type != document.content_type:
-        raise HTTPException(status_code=400, detail="Uploaded content type does not match request")
-    return UploadCompleteResponse(status="uploaded", document_id=document_id)
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded size does not match request",
+        )
+
+    if actual_content_type != document.content_type:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded content type does not match request",
+        )
+
+    content = await blob_service.download_content(document.blob_name)
+
+    try:
+        validate_uploaded_file(content, document.content_type)
+    except ValueError as exc:
+        document.upload_verification_status = UploadVerificationStatus.REJECTED
+        item.payload = document.model_dump(mode="json")
+        await repository.upsert_item(item)
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    document.upload_verification_status = UploadVerificationStatus.VERIFIED
+    document.verified_at = utc_now()
+    document.content_sha256 = sha256(content).hexdigest()
+
+    item.payload = document.model_dump(mode="json")
+    await repository.upsert_item(item)
+
+    return UploadCompleteResponse(
+        status="verified",
+        document_id=document_id,
+    )
 
 
 @router.post(
@@ -210,19 +299,40 @@ async def submit_claim(
     if claim.status not in {ClaimStatus.DRAFT, ClaimStatus.UPLOADING}:
         raise HTTPException(status_code=409, detail="Claim is already submitted")
     documents = await repository.list_items(claim_id, "document")
+        
     if not documents:
         raise HTTPException(status_code=400, detail="At least one document is required")
-
+    unverified_document_ids = [
+        document.id
+        for item in documents
+        if (
+            document := ClaimDocument.model_validate(item.payload)
+        ).upload_verification_status
+        != UploadVerificationStatus.VERIFIED
+    ]
+    if unverified_document_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="All uploads must be verified before submission",
+        )
+   
     settings = get_settings()
     headers = {"x-functions-key": settings.function_key} if settings.function_key else {}
     async with httpx.AsyncClient(timeout=30) as client:
+        verified_documents = [
+            ClaimDocument.model_validate(item.payload)
+            for item in documents
+        ]
         response = await client.post(
             f"{settings.function_base_url}/refund-workflows",
             headers=headers,
-            json={
-                "claim_id": claim_id,
-                "document_ids": [item.payload["id"] for item in documents],
-            },
+        json={
+            "claim_id": claim_id,
+            "document_ids": [
+                document.id
+                for document in verified_documents
+            ],
+        },
         )
         response.raise_for_status()
     workflow_instance_id = response.json()["id"]

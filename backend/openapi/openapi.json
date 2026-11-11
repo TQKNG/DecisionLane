@@ -367,8 +367,8 @@
         "tags": [
           "uploads"
         ],
-        "summary": "Confirm an evidence upload",
-        "description": "For the owning Customer, verifies the uploaded Blob size and content type against the original upload request.",
+        "summary": "Verify an evidence upload",
+        "description": "For the owning Customer, verifies the uploaded Blob size, content type, file signature, and file structure before marking the document as verified.",
         "operationId": "complete_claim_upload",
         "security": [
           {
@@ -1450,7 +1450,7 @@
         "properties": {
           "status": {
             "type": "string",
-            "const": "uploaded",
+            "const": "verified",
             "title": "Status"
           },
           "document_id": {
