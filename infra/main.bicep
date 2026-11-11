@@ -21,6 +21,18 @@ param budgetEmail string
 @description('First day of the current billing month in UTC.')
 param budgetStartDate string
 
+@description('Resource group containing the existing Microsoft Foundry resource.')
+param foundryResourceGroup string = 'rg-foundry-models'
+
+@description('Existing Microsoft Foundry resource that hosts Content Understanding.')
+param foundryResourceName string = 'fd-resource-dev'
+
+@description('Content Understanding analyzer identifier.')
+param contentUnderstandingAnalyzerId string = 'refund_evidence_classifier'
+
+@description('Production Content Understanding API version.')
+param contentUnderstandingApiVersion string = '2025-11-01'
+
 var token = toLower(uniqueString(subscription().id, resourceGroup().id))
 var prefix = 'refundflow-${environmentName}'
 var storageName = take(replace('st${prefix}${token}', '-', ''), 24)
@@ -30,6 +42,11 @@ var acrName = take(replace('${prefix}acr${token}', '-', ''), 50)
 var appName = '${prefix}-api'
 var functionName = take('${prefix}-workflow-${token}', 60)
 var deploymentContainerName = 'function-releases'
+
+resource foundry 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
+  name: foundryResourceName
+  scope: resourceGroup(foundryResourceGroup)
+}
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: '${prefix}-logs'
@@ -444,6 +461,9 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'STORAGE_ACCOUNT_URL', value: storage.properties.primaryEndpoints.blob }
             { name: 'CONTENT_SAFETY_ENDPOINT', value: contentSafety.properties.endpoint }
             { name: 'DOCUMENT_INTELLIGENCE_ENDPOINT', value: documentIntelligence.properties.endpoint }
+            { name: 'CONTENT_UNDERSTANDING_ENDPOINT', value: foundry.properties.endpoint }
+            { name: 'CONTENT_UNDERSTANDING_ANALYZER_ID', value: contentUnderstandingAnalyzerId }
+            { name: 'CONTENT_UNDERSTANDING_API_VERSION', value: contentUnderstandingApiVersion }
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
             { name: 'ENABLE_INSTRUMENTATION', value: 'true' }
             { name: 'ENABLE_SENSITIVE_DATA', value: 'false' }
@@ -541,11 +561,24 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'STORAGE_ACCOUNT_URL', value: storage.properties.primaryEndpoints.blob }
         { name: 'CONTENT_SAFETY_ENDPOINT', value: contentSafety.properties.endpoint }
         { name: 'DOCUMENT_INTELLIGENCE_ENDPOINT', value: documentIntelligence.properties.endpoint }
+        { name: 'CONTENT_UNDERSTANDING_ENDPOINT', value: foundry.properties.endpoint }
+        { name: 'CONTENT_UNDERSTANDING_ANALYZER_ID', value: contentUnderstandingAnalyzerId }
+        { name: 'CONTENT_UNDERSTANDING_API_VERSION', value: contentUnderstandingApiVersion }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'ENABLE_INSTRUMENTATION', value: 'true' }
         { name: 'ENABLE_SENSITIVE_DATA', value: 'false' }
       ]
     }
+  }
+}
+
+module foundryRoleAssignments 'foundry-role-assignments.bicep' = {
+  name: 'foundry-rbac-${token}'
+  scope: resourceGroup(foundryResourceGroup)
+  params: {
+    foundryResourceName: foundryResourceName
+    apiPrincipalId: api.identity.principalId
+    functionPrincipalId: functionApp.identity.principalId
   }
 }
 

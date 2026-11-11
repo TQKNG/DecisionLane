@@ -26,6 +26,9 @@ class Settings(BaseSettings):
 
     content_safety_endpoint: str = ""
     document_intelligence_endpoint: str=""
+    content_understanding_endpoint: str = ""
+    content_understanding_analyzer_id: str = "refund_evidence_classifier"
+    content_understanding_api_version: str = "2025-11-01"
 
     azure_search_endpoint:str =""
     azure_search_index:str = "refundflow-policies-v1"
