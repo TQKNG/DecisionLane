@@ -419,7 +419,7 @@ async def execute_refund(activity_input) -> dict[str, object]:
         order = await order_repository.get_order(claim.customer_id, claim.order_id)
         if order is None:
             raise ValueError("Order not found")
-        if assessment.proposed_refund_amount > order.paid_amout:
+        if assessment.proposed_refund_amount > order.paid_amount:
             raise ValueError("Proposed amount exceeds paid amount")
         payment_service = StripeRefundService(os.environ["STRIPE_SECRET_KEY"])
         result = payment_service.create_refund(
@@ -430,7 +430,7 @@ async def execute_refund(activity_input) -> dict[str, object]:
         )
         await services.repository.upsert_item(
             ClaimAggregateItem(
-                id=f"refund:{claim:id}",
+                id=f"refund:{claim.id}",
                 claim_id=claim.id,
                 item_type="refund",
                 payload=result
