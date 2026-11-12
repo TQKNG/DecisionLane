@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from api.routers.claims import router as claims_router
+from api.routers.orders import router as orders_router
 from api.routers.reviews import router as reviews_router
 from api.routers.uploads import router as uploads_router
 from api.routers.webhooks import router as webhooks_router
@@ -43,6 +44,7 @@ app.add_middleware(
     allow_private_network=settings.app_env == "local",
 )
 app.include_router(claims_router)
+app.include_router(orders_router)
 app.include_router(uploads_router)
 app.include_router(reviews_router)
 app.include_router(webhooks_router)

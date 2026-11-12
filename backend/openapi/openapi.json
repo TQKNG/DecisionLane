@@ -252,6 +252,83 @@
         }
       }
     },
+    "/v1/admin/orders": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Create a test order",
+        "description": "For an Admin, creates an order record for local or integration testing. Production orders should normally be created by the payment integration.",
+        "operationId": "create_admin_order",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The bearer token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have a required role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the resource's current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "EntraBearer": []
+          }
+        ]
+      }
+    },
     "/v1/claims/{claim_id}/uploads": {
       "post": {
         "tags": [
@@ -1235,6 +1312,61 @@
         ],
         "title": "CreateClaimRequest"
       },
+      "CreateOrderRequest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Id",
+            "description": "Unique order identifier."
+          },
+          "customer_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Customer Id",
+            "description": "Entra object ID of the customer who owns the order."
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "description": "Three-letter order currency code.",
+            "examples": [
+              "CAD"
+            ]
+          },
+          "paid_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Paid Amount",
+            "description": "Amount paid for the order."
+          },
+          "payment_intent_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Payment Intent Id",
+            "description": "Payment provider reference for the order."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "customer_id",
+          "currency",
+          "paid_amount",
+          "payment_intent_id"
+        ],
+        "title": "CreateOrderRequest"
+      },
       "CriterionStatus": {
         "type": "string",
         "enum": [
@@ -1286,6 +1418,39 @@
           "status"
         ],
         "title": "HealthResponse"
+      },
+      "OrderRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "customer_id": {
+            "type": "string",
+            "title": "Customer Id"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "paid_amount": {
+            "type": "string",
+            "title": "Paid Amount"
+          },
+          "payment_intent_id": {
+            "type": "string",
+            "title": "Payment Intent Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "customer_id",
+          "currency",
+          "paid_amount",
+          "payment_intent_id"
+        ],
+        "title": "OrderRecord"
       },
       "PolicyCitation": {
         "properties": {

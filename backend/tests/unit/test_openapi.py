@@ -31,6 +31,10 @@ EXPECTED_OPERATIONS = {
     ("get", "/v1/admin/kpis"): ("get_admin_kpis", "admin", "200", True, False),
     (
         "post",
+        "/v1/admin/orders",
+    ): ("create_admin_order", "admin", "201", True, True),
+    (
+        "post",
         "/v1/webhooks/stripe",
     ): ("receive_stripe_webhook", "webhooks", "200", False, True),
 }
@@ -47,6 +51,7 @@ EXPECTED_ROLES = {
     ("get", "/v1/reviews/{claim_id}"): ("Reviewer", "Admin"),
     ("post", "/v1/reviews/{claim_id}/decision"): ("Reviewer", "Admin"),
     ("get", "/v1/admin/kpis"): ("Admin",),
+    ("post", "/v1/admin/orders"): ("Admin",),
 }
 
 
