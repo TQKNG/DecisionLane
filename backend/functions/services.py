@@ -7,14 +7,14 @@ from azure.identity.aio import DefaultAzureCredential
 from refundflow.config import get_settings
 from refundflow.repositories.cosmos import CosmosClaimRepository
 from refundflow.services.content_safety import ContentSafetyService
+from refundflow.services.content_understanding import (
+    ContentUnderstandingService,
+)
 from refundflow.services.document_intelligence import DocumentExtractionService
 from refundflow.services.embeddings import EmbeddingService
 from refundflow.services.evidence_storage import EvidenceStorageService
 from refundflow.services.malware import MalwareScanService
 from refundflow.services.policy_search import PolicySearchService
-from refundflow.services.content_understanding import (
-    ContentUnderstandingService,
-)
 
 
 class ActivityServices:
@@ -73,6 +73,7 @@ class ActivityServices:
             self.malware.close,
             self.content_safety.close,
             self.extraction.close,
+            self.content_understanding.close,
             self.repository.close,
         ]
         for close in close_operations:

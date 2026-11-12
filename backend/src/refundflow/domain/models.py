@@ -57,6 +57,31 @@ class SafetyDecision(StrEnum):
     REVIEW = 'review'
     BLOCK = 'block'
 
+
+class EvidenceType(StrEnum):
+    RECEIPT = "receipt"
+    INVOICE = "invoice"
+    ORDER_CONFIRMATION = "order_confirmation"
+    TRACKING_EVIDENCE = "tracking_evidence"
+    DAMAGE_PHOTO = "damage_photo"
+    PRODUCT_PHOTO = "product_photo"
+    PACKAGE_LABEL = "package_label"
+    UNREADABLE = "unreadable"
+    OTHER = "other"
+
+
+class EvidenceClassification(BaseModel):
+    evidence_type: EvidenceType
+    confidence: float = Field(ge=0, le=1)
+    image_quality: str
+    shows_product: bool | None = None
+    damage_visible: bool | None = None
+    damage_type: str | None = None
+    reason: str
+    validation_status: str
+    analyzer_id: str
+
+
 class CriterionStatus(StrEnum):
     PASS = 'pass'
     FAIL = 'fail'
@@ -76,6 +101,13 @@ class ClaimDocument(BaseModel):
     )
     verified_at: datetime | None = None
     content_sha256: str | None = None
+
+    evidence_type: EvidenceType | None = None
+    evidence_confidence: float | None = Field(default=None, ge=0, le=1)
+    evidence_validation: str | None = None
+    damage_visible: bool | None = None
+    image_quality: str | None = None
+    classification_reason: str | None = None
 
     created_at: datetime = Field(default_factory=utc_now)
 

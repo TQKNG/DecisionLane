@@ -11,6 +11,7 @@ dependencies = [
   "agent-framework-azure-ai",
   "agent-framework-foundry",
   "azure-ai-contentsafety>=1.0,<2",
+  "azure-ai-contentunderstanding>=1.1,<2",
   "azure-ai-documentintelligence>=1.0,<2",
   "azure-ai-evaluation",
   "azure-ai-projects",

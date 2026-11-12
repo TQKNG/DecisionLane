@@ -6,7 +6,7 @@ from azure.ai.contentunderstanding.aio import ContentUnderstandingClient
 from azure.core.credentials_async import AsyncTokenCredential
 from pydantic import ValidationError
 
-from refundflow.domain.models import EvidenceClassification, EvidenceType
+from refundflow.domain.models import EvidenceClassification
 
 
 class ContentUnderstandingService:

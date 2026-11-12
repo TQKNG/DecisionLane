@@ -285,6 +285,7 @@ async def reject_document(activity_input) -> None:
         await services.close()
 
 
+# Main Flow - Plug-in business logic
 @app.activity_trigger(input_name="activity_input")
 @traced_activity("refundflow.process_document", "document_processing")
 async def process_document(activity_input) -> dict[str, object]:
@@ -295,13 +296,21 @@ async def process_document(activity_input) -> dict[str, object]:
             activity_input["claim_id"],
             activity_input["document_id"],
         )
+
+        # Run Content Safety before Content Understanding classification.
         content = await services.evidence_storage.download_quarantined(document.blob_name)
         safety = await services.content_safety.analyze(content, document.content_type)
+
         if safety.decision == SafetyDecision.BLOCK:
             document.status = DocumentProcessingStatus.SAFETY_BLOCKED
             item.payload = document.model_dump(mode="json")
             await services.repository.upsert_item(item)
             return {"decision": safety.decision.value, "document": None}
+
+        classification = await services.content_understanding.analyze(
+            content,
+            document.content_type,
+        )
 
         extracted = await services.extraction.extract(
             document.id,
@@ -310,17 +319,32 @@ async def process_document(activity_input) -> dict[str, object]:
             content,
             safety,
         )
-        if safety.decision == SafetyDecision.PASS:
-            await services.evidence_storage.promote(
-                document.blob_name,
-                content,
-                document.content_type,
-            )
-            document.status = DocumentProcessingStatus.EXTRACTION_COMPLETE
-        else:
-            document.status = DocumentProcessingStatus.SAFETY_REVIEW_REQUIRED
+
+        document.evidence_type = classification.evidence_type
+        document.evidence_confidence = classification.confidence
+        document.evidence_validation = classification.validation_status
+        document.damage_visible = classification.damage_visible
+        document.image_quality = classification.image_quality
+        document.classification_reason = classification.reason
+        document.status = (
+            DocumentProcessingStatus.SAFETY_REVIEW_REQUIRED
+            if safety.decision == SafetyDecision.REVIEW
+            else DocumentProcessingStatus.EXTRACTION_COMPLETE
+        )
+
         item.payload = document.model_dump(mode="json")
         await services.repository.upsert_item(item)
+
+        # For reviewer summary
+        await services.repository.upsert_item(
+            ClaimAggregateItem(
+                id=f"classification:{document.id}",
+                claim_id=document.claim_id,
+                item_type="classification",
+                payload=classification.model_dump(mode="json"),
+            )
+        )
+
         await services.repository.upsert_item(
             ClaimAggregateItem(
                 id=f"extraction:{document.id}",
@@ -331,7 +355,9 @@ async def process_document(activity_input) -> dict[str, object]:
         )
         return {
             "decision": safety.decision.value,
+            "classification": classification.model_dump(mode="json"),
             "document": extracted.model_dump(mode="json"),
+            "promotable": False,
         }
     finally:
         await services.close()
