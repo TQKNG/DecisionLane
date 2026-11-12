@@ -128,13 +128,24 @@ class SafetyAnalysis(BaseModel):
     decision: SafetyDecision
     severities: dict[str,int]
 
+
+class ExtractedField(BaseModel):
+    value: str
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    page_number: int | None = None
+    source: str | None = None
+
+
 class ExtractedDocument(BaseModel):
     document_id:str
     file_name:str
     content_type:str
+    evidence_type: EvidenceType
     page_count:int
-    text:str
-    key_values: dict[str,str] = Field(default_factory=dict)
+    text_excerpt: str = ""
+    fields: dict[str, ExtractedField] = Field(default_factory=dict)
+    extraction_status: str
+    extraction_error: str | None = None
     safety: SafetyAnalysis
 
 class EvidenceBundle(BaseModel):
