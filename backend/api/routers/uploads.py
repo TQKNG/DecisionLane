@@ -243,6 +243,7 @@ async def complete_upload(
             detail="Uploaded size does not match request",
         )
 
+    print(actual_content_type, document.content_type)
     if actual_content_type != document.content_type:
         raise HTTPException(
             status_code=400,

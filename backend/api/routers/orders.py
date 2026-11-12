@@ -53,7 +53,7 @@ class CreateOrderRequest(BaseModel):
 )
 async def create_admin_order(
     body: CreateOrderRequest,
-    _: Annotated[CurrentUser, Depends(require_roles("Admin"))],
+    _: Annotated[CurrentUser, Depends(require_roles("Admin","Customer"))],
     repository: OrderRepositoryDep,
 ) -> OrderRecord:
     order = OrderRecord(**body.model_dump())
