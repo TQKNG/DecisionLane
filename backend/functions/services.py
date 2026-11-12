@@ -12,6 +12,9 @@ from refundflow.services.embeddings import EmbeddingService
 from refundflow.services.evidence_storage import EvidenceStorageService
 from refundflow.services.malware import MalwareScanService
 from refundflow.services.policy_search import PolicySearchService
+from refundflow.services.content_understanding import (
+    ContentUnderstandingService,
+)
 
 
 class ActivityServices:
@@ -36,6 +39,13 @@ class ActivityServices:
         self.extraction = DocumentExtractionService(
             settings.document_intelligence_endpoint,
             self.credential
+        )
+        self.content_understanding = ContentUnderstandingService(
+            settings.content_understanding_endpoint,
+            settings.content_understanding_document_analyzer_id,
+            settings.content_understanding_image_analyzer_id,
+            settings.content_understanding_api_version,
+            self.credential,
         )
         self.evidence_storage = EvidenceStorageService(
             settings.storage_account_url,

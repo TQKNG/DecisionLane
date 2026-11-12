@@ -26,8 +26,12 @@ class Settings(BaseSettings):
 
     content_safety_endpoint: str = ""
     document_intelligence_endpoint: str=""
-    content_understanding_endpoint: str = ""
-    content_understanding_analyzer_id: str = "refund_evidence_classifier"
+    content_understanding_document_analyzer_id: str = (
+        "refund_evidence_document_classifier"
+    )
+    content_understanding_image_analyzer_id: str = (
+        "refund_evidence_image_classifier"
+    )
     content_understanding_api_version: str = "2025-11-01"
 
     azure_search_endpoint:str =""
