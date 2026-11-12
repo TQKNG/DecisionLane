@@ -9,6 +9,7 @@ import azure.functions as func
 from azure.identity import DefaultAzureCredential as SyncDefaultAzureCredential
 
 from functions.services import ActivityServices
+from refundflow.domain.evidence_validation import evaluate_evidence_bundle
 from refundflow.domain.models import (
     AssessmentResult,
     ClaimAggregateItem,
@@ -16,6 +17,7 @@ from refundflow.domain.models import (
     ClaimStatus,
     DocumentProcessingStatus,
     EvidenceBundle,
+    EvidenceClassification,
     ExtractedDocument,
     RefundClaim,
     SafetyDecision,
@@ -156,8 +158,10 @@ def refund_orchestrator(context: df.DurableOrchestrationContext):
         "set_claim_status",
         {"claim_id": claim_id, "status": ClaimStatus.PROCESSING.value},
     )
-    extracted_documents = []
     requires_safety_review = False
+    classifications: dict[str, object] = {}
+    extractions: dict[str, object] = {}
+    safety_decisions: dict[str, str] = {}
     for document_id in document_ids:
         result = yield context.call_activity(
             "process_document",
@@ -171,7 +175,51 @@ def refund_orchestrator(context: df.DurableOrchestrationContext):
             return {"status": "rejected", "reason": "content_safety_block"}
         if result["decision"] == SafetyDecision.REVIEW.value:
             requires_safety_review = True
-        extracted_documents.append(result["document"])
+        safety_decisions[document_id] = str(result["decision"])
+        if result.get("classification") is not None:
+            classifications[document_id] = result["classification"]
+        if result.get("document") is not None:
+            extractions[document_id] = result["document"]
+
+    validation = yield context.call_activity(
+        "validate_evidence_bundle",
+        {
+            "claim_id": claim_id,
+            "classifications": classifications,
+            "extractions": extractions,
+            "safety_decisions": safety_decisions,
+        },
+    )
+
+    if validation["status"] == "rejected":
+        yield context.call_activity(
+            "set_claim_status",
+            {"claim_id": claim_id, "status": ClaimStatus.REJECTED.value},
+        )
+        return validation
+
+    if validation["status"] == "needs_information":
+        yield context.call_activity(
+            "set_claim_status",
+            {"claim_id": claim_id, "status": ClaimStatus.NEEDS_INFORMATION.value},
+        )
+        return validation
+
+    if validation["status"] == "human_review":
+        yield context.call_activity(
+            "set_claim_status",
+            {"claim_id": claim_id, "status": ClaimStatus.PENDING_APPROVAL.value},
+        )
+    else:
+        yield context.call_activity(
+            "promote_documents",
+            {
+                "claim_id": claim_id,
+                "document_ids": validation["document_ids"],
+            },
+        )
+
+    extracted_documents = list(extractions.values())
 
     assessment = yield context.call_activity(
         "assess_claim",
@@ -249,6 +297,51 @@ async def load_claim_and_document(
     if item is None:
         raise ValueError(f"Document {document_id} does not exist")
     return claim, item, ClaimDocument.model_validate(item.payload)
+
+
+@app.activity_trigger(input_name="activity_input")
+@traced_activity("refundflow.validate_evidence_bundle", "evidence_validation")
+async def validate_evidence_bundle(activity_input) -> dict[str, object]:
+    services = ActivityServices()
+    try:
+        claim = await services.repository.get_claim(str(activity_input["claim_id"]))
+        if claim is None:
+            raise ValueError("Claim not found")
+
+        classifications = {
+            str(document_id): EvidenceClassification.model_validate(value)
+            for document_id, value in activity_input["classifications"].items()
+        }
+        extractions = {
+            str(document_id): ExtractedDocument.model_validate(value)
+            for document_id, value in activity_input["extractions"].items()
+        }
+        safety_decisions = {
+            str(document_id): str(decision)
+            for document_id, decision in activity_input["safety_decisions"].items()
+        }
+        validation = evaluate_evidence_bundle(
+            claim.claim_type,
+            classifications,
+            extractions,
+            safety_decisions,
+        )
+        payload = {
+            "status": validation.status.value,
+            "reasons": list(validation.reasons),
+            "document_ids": list(validation.document_ids),
+        }
+        await services.repository.upsert_item(
+            ClaimAggregateItem(
+                id="evidence-validation",
+                claim_id=claim.id,
+                item_type="evidence_validation",
+                payload=payload,
+            )
+        )
+        return payload
+    finally:
+        await services.close()
 
 
 @app.activity_trigger(input_name="activity_input")
@@ -362,6 +455,32 @@ async def process_document(activity_input) -> dict[str, object]:
     finally:
         await services.close()
 
+# Promotion evidence only after the rubric passes
+@app.activity_trigger(input_name="activity_input")
+async def promote_documents(activity_input) -> None:
+    services = ActivityServices()
+    try:
+        for document_id in activity_input["document_ids"]:
+            _, item, document = await load_claim_and_document(
+                services,
+                activity_input["claim_id"],
+                document_id,
+            )
+
+            content = await services.evidence_storage.download_quarantined(
+                document.blob_name
+            )
+            await services.evidence_storage.promote(
+                document.blob_name,
+                content,
+                document.content_type,
+            )
+
+            document.status = DocumentProcessingStatus.EXTRACTION_COMPLETE
+            item.payload = document.model_dump(mode="json")
+            await services.repository.upsert_item(item)
+    finally:
+        await services.close()
 
 @app.activity_trigger(input_name="activity_input")
 @traced_activity("refundflow.assess_claim", "claim_assessment")
