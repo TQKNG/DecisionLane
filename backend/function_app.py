@@ -64,12 +64,32 @@ async def start_refund_workflow(
             "claim_id and document_ids are required",
             status_code=400,
         )
-    instance_id = await client.start_new(
-        "refund_orchestrator",
-        client_input=body,
-    )
-    return client.create_check_status_response(req, instance_id)
+    instance_id = f"refund-workflow:{body['claim_id']}"
 
+    # Check for timeout workflow instance. Avoid duplicates
+    existing = await client.get_status(instance_id)
+    if existing is not None:
+        if existing.input != body:
+            return func.HttpResponse(
+                "A different workflow already exists for this claim",
+                status_code=409,
+            )
+
+        return client.create_check_status_response(req, instance_id)
+
+    try:
+        await client.start_new(
+            "refund_orchestrator",
+            instance_id=instance_id,
+            client_input=body,
+        )
+    except Exception:
+        # Handles two requests racing to create the same workflow.
+        existing = await client.get_status(instance_id)
+        if existing is None:
+            raise
+
+    return client.create_check_status_response(req, instance_id)
 
 @app.route(
     route="refund-workflows/{instance_id}/approvals",

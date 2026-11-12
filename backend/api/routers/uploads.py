@@ -294,6 +294,13 @@ async def submit_claim(
     repository: ClaimRepositoryDep,
 ) -> ClaimSubmissionResponse:
     claim = await get_owned_claim(claim_id, user, repository)
+    if (claim.status == ClaimStatus.SCANNING
+    and claim.workflow_instance_id):
+        return ClaimSubmissionResponse(
+            status="scanning",
+            workflow_instance_id=claim.workflow_instance_id,
+        )
+
     if claim.status not in {ClaimStatus.DRAFT, ClaimStatus.UPLOADING}:
         raise HTTPException(status_code=409, detail="Claim is already submitted")
     documents = await repository.list_items(claim_id, "document")
