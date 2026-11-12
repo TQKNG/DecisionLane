@@ -100,7 +100,6 @@ async def get_claim(
     ],
     repository: ClaimRepositoryDep,
 ) -> RefundClaim:
-    print(claim_id)
     claim = await repository.get_claim(claim_id)
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")

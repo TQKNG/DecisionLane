@@ -74,6 +74,7 @@ async def list_claims(
         description="Optional claim status filter.",
     ),
 ) -> list[RefundClaim]:
+    print(user, repository, requested_status)
     customer_id = None
     if "Customer" in user.roles and not user.roles.intersection({"Reviewer", "Admin"}):
         customer_id = user.user_id

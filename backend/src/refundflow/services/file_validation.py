@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from io import BytesIO
 
-import pypdfium2 as pdfium
+import pypdfium2 as pdfium  # type: ignore[import-untyped]
 from PIL import Image
 
 from refundflow.services.blob_storage import MAX_FILE_BYTES
-
 
 IMAGE_FORMATS = {
     "JPEG": "image/jpeg",

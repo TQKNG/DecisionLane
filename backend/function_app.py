@@ -27,7 +27,13 @@ from refundflow.services.malware import MalwareStatus
 from refundflow.services.payments import StripeRefundService
 from refundflow.workflows.assessment import run_assessment_workflow
 
-app = df.DFApp(http_auth_level=func.AuthLevel.FUNCTION)
+local_auth_level = (
+    func.AuthLevel.ANONYMOUS
+    if os.getenv("APP_ENV") == "local"
+    else func.AuthLevel.FUNCTION
+)
+
+app = df.DFApp(http_auth_level=local_auth_level)
 
 
 def traced_activity(name: str, stage: str):
@@ -42,7 +48,11 @@ def traced_activity(name: str, stage: str):
     return decorate
 
 
-@app.route(route="refund-workflows", methods=["POST"])
+@app.route(
+    route="refund-workflows",
+    methods=["POST"],
+    auth_level=local_auth_level,
+)
 @app.durable_client_input(client_name="client")
 async def start_refund_workflow(
     req: func.HttpRequest,
@@ -61,7 +71,11 @@ async def start_refund_workflow(
     return client.create_check_status_response(req, instance_id)
 
 
-@app.route(route="refund-workflows/{instance_id}/approvals", methods=["POST"])
+@app.route(
+    route="refund-workflows/{instance_id}/approvals",
+    methods=["POST"],
+    auth_level=local_auth_level,
+)
 @app.durable_client_input(client_name="client")
 async def signal_approval(
     req: func.HttpRequest,
@@ -368,9 +382,9 @@ async def record_approval(activity_input) -> None:
     finally:
         await services.close()
 
-@app.activity_trigger(input_name="activty_input")
+@app.activity_trigger(input_name="activity_input")
 @traced_activity("refundflow.execute_refund", "refund_execution")
-async def execute_refund(activity_input: dict[str,object])-> dict[str,object]:
+async def execute_refund(activity_input) -> dict[str, object]:
     services = ActivityServices()
     order_repository = CosmosOrderRepository(
         services.settings.cosmos_endpoint,
@@ -410,7 +424,7 @@ async def execute_refund(activity_input: dict[str,object])-> dict[str,object]:
 
 @app.activity_trigger(input_name="activity_input")
 @traced_activity("refundflow.send_status_email", "status_notification")
-async def send_status_email(activity_input: dict[str,str])-> None:
+async def send_status_email(activity_input) -> None:
     services = ActivityServices()
     try:
         claim = await services.repository.get_claim(activity_input["claim_id"])

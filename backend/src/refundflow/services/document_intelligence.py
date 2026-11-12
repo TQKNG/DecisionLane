@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from io import BytesIO
-
-import pypdfium2 as pdfium
+import pypdfium2 as pdfium  # type: ignore[import-untyped]
 from azure.ai.documentintelligence.aio import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 from azure.core.credentials_async import AsyncTokenCredential
-from PIL import Image
 
 from refundflow.domain.models import ExtractedDocument, SafetyAnalysis
 from refundflow.services.file_validation import validate_uploaded_file

@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal
-
-from datetime import datetime
 from hashlib import sha256
 from pathlib import PurePosixPath
+from typing import Annotated, Literal
 
 import httpx
 from azure.identity.aio import DefaultAzureCredential
@@ -20,16 +18,16 @@ from refundflow.domain.models import (
     ClaimDocument,
     ClaimStatus,
     RefundClaim,
-    UploadVerificationStatus
+    UploadVerificationStatus,
+    utc_now,
 )
-from refundflow.services.file_validation import validate_uploaded_file
 from refundflow.repositories.claims import ClaimRepository
 from refundflow.services.blob_storage import (
     MAX_FILE_BYTES,
     MAX_FILES_PER_CLAIM,
     BlobStorageService,
 )
-from refundflow.domain.models import utc_now
+from refundflow.services.file_validation import validate_uploaded_file
 
 router = APIRouter(prefix="/v1/claims", tags=["uploads"])
 

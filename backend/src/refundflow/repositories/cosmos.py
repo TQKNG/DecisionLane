@@ -33,6 +33,7 @@ class CosmosClaimRepository:
 
     async def get_claim(self, claim_id: str) -> RefundClaim | None:
         try:
+            print("test claim", claim_id)
             item = await self._container.read_item(
                 item=f"claim:{claim_id}",
                 partition_key=claim_id,
