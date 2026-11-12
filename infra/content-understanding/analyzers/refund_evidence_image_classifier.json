@@ -88,10 +88,16 @@
 				"method": "classify",
 				"description": "Rate the image as good, fair, poor, or unreadable for human review.",
 				"enum": [
-					"category1"
+					"good",
+					"fair",
+					"poor",
+					"unreadable"
 				],
 				"enumDescriptions": {
-					"category1": ""
+					"good": "",
+					"fair": "",
+					"poor": "",
+					"unreadable": ""
 				}
 			},
 			"confidence": {
