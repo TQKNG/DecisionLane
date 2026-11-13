@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from datetime import timedelta
 from functools import wraps
 
@@ -12,6 +11,7 @@ from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import DefaultAzureCredential as SyncDefaultAzureCredential
 
 from functions.services import ActivityServices
+from refundflow.config import get_settings
 from refundflow.domain.evidence_validation import evaluate_evidence_bundle
 from refundflow.domain.models import (
     AssessmentResult,
@@ -34,7 +34,7 @@ from refundflow.workflows.assessment import run_assessment_workflow
 
 local_auth_level = (
     func.AuthLevel.ANONYMOUS
-    if os.getenv("APP_ENV") == "local"
+    if get_settings().app_env == "local"
     else func.AuthLevel.FUNCTION
 )
 
