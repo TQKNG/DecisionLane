@@ -12,8 +12,17 @@ from refundflow.domain.safety_policy import decide_image_safety
 
 
 class ContentSafetyService:
-    def __init__(self, endpoint:str, credential:AsyncTokenCredential)->None:
-        self._client = ContentSafetyClient(endpoint,credential)
+    def __init__(
+        self,
+        endpoint: str,
+        api_version: str,
+        credential: AsyncTokenCredential,
+    ) -> None:
+        self._client = ContentSafetyClient(
+            endpoint,
+            credential,
+            api_version=api_version,
+        )
 
     async def _analyze_image(self,image_bytes:bytes) -> dict[str, int]:
         response = await self._client.analyze_image(

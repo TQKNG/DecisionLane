@@ -144,3 +144,29 @@ async def test_scanning_claim_retries_workflow(
 
     assert response.status == "scanning"
     assert response.workflow_instance_id == "refund-workflow:claim-1"
+
+
+@pytest.mark.asyncio
+async def test_processing_claim_retries_workflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = FakeClaimRepository()
+    repository.claim.status = ClaimStatus.PROCESSING
+    repository.claim.workflow_instance_id = "refund-workflow:claim-1"
+    user = CurrentUser(
+        user_id="customer-1",
+        name="Customer",
+        email="customer@example.com",
+        roles=frozenset({"Customer"}),
+    )
+    monkeypatch.setattr(
+        uploads,
+        "get_settings",
+        lambda: SimpleNamespace(function_base_url="http://localhost:7071/api", function_key=""),
+    )
+    monkeypatch.setattr(uploads.httpx, "AsyncClient", SuccessfulFakeHttpClient)
+
+    response = await submit_claim("claim-1", user, repository)
+
+    assert response.status == "scanning"
+    assert response.workflow_instance_id == "refund-workflow:claim-1"

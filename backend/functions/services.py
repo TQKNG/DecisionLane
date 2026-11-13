@@ -34,6 +34,7 @@ class ActivityServices:
         )
         self.content_safety = ContentSafetyService(
             settings.content_safety_endpoint, 
+            settings.content_safety_api_version,
             self.credential
         )
         self.extraction = DocumentExtractionService(

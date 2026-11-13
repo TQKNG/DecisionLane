@@ -74,6 +74,12 @@ class FailedWorkflowClient(FakeDurableClient):
         self.started = True
 
 
+class CompletedWorkflowClient(FailedWorkflowClient):
+    def __init__(self, existing_input: dict[str, object]) -> None:
+        super().__init__(existing_input)
+        self.status.runtime_status = df.OrchestrationRuntimeStatus.Completed
+
+
 @pytest.mark.asyncio
 async def test_existing_workflow_input_is_compared() -> None:
     body = {
@@ -129,6 +135,55 @@ async def test_failed_workflow_is_purged_and_restarted() -> None:
         body=json.dumps(body).encode(),
     )
     client = FailedWorkflowClient(existing_input=body)
+
+    start_activity = function_app.start_refund_workflow._function._func.__wrapped__
+    response = await start_activity(request, client)
+
+    assert response.status_code == 202
+    assert client.purged is True
+    assert client.started is True
+
+
+@pytest.mark.asyncio
+async def test_failed_workflow_restarts_with_updated_documents() -> None:
+    body = {
+        "claim_id": "failed-claim",
+        "document_ids": ["document-2"],
+    }
+    request = func.HttpRequest(
+        method="POST",
+        url="http://localhost/api/refund-workflows",
+        body=json.dumps(body).encode(),
+    )
+    client = FailedWorkflowClient(existing_input={
+        "claim_id": "failed-claim",
+        "document_ids": ["document-1"],
+    })
+
+    start_activity = function_app.start_refund_workflow._function._func.__wrapped__
+    response = await start_activity(request, client)
+
+    assert response.status_code == 202
+    assert client.purged is True
+    assert client.started is True
+
+
+@pytest.mark.asyncio
+async def test_completed_workflow_restarts_for_revised_evidence() -> None:
+    body = {
+        "claim_id": "needs-information-claim",
+        "document_ids": ["document-2"],
+        "restart_workflow": True,
+    }
+    request = func.HttpRequest(
+        method="POST",
+        url="http://localhost/api/refund-workflows",
+        body=json.dumps(body).encode(),
+    )
+    client = CompletedWorkflowClient(existing_input={
+        "claim_id": "needs-information-claim",
+        "document_ids": ["document-1"],
+    })
 
     start_activity = function_app.start_refund_workflow._function._func.__wrapped__
     response = await start_activity(request, client)

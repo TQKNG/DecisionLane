@@ -67,21 +67,24 @@ async def start_refund_workflow(
             status_code=400,
         )
     instance_id = f"refund-workflow:{body['claim_id']}"
+    restart_workflow = body.get("restart_workflow") is True
 
     # Reuse active workflows and recover failed workflows without duplicating work.
     existing = await client.get_status(instance_id, show_input=True)
     if existing:
-        if existing.input_ != body:
+        if existing.runtime_status in {
+            df.OrchestrationRuntimeStatus.Failed,
+            df.OrchestrationRuntimeStatus.Terminated,
+        } or (
+            restart_workflow
+            and existing.runtime_status == df.OrchestrationRuntimeStatus.Completed
+        ):
+            await client.purge_instance_history(instance_id)
+        elif existing.input_ != body:
             return func.HttpResponse(
                 "A different workflow already exists for this claim",
                 status_code=409,
             )
-
-        if existing.runtime_status in {
-            df.OrchestrationRuntimeStatus.Failed,
-            df.OrchestrationRuntimeStatus.Terminated,
-        }:
-            await client.purge_instance_history(instance_id)
         else:
             return client.create_check_status_response(req, instance_id)
 

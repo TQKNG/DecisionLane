@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     evidence_container:str="evidence"
 
     content_safety_endpoint: str = ""
+    content_safety_api_version: str = "2024-09-01"
     document_intelligence_endpoint: str=""
     content_understanding_endpoint: str = ""
     content_understanding_document_analyzer_id: str = (

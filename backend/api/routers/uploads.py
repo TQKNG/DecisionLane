@@ -164,7 +164,8 @@ async def request_upload(
             payload=document.model_dump(mode="json"),
         )
     )
-    claim.status = ClaimStatus.UPLOADING
+    if claim.status != ClaimStatus.NEEDS_INFORMATION:
+        claim.status = ClaimStatus.UPLOADING
     await repository.replace_claim(claim)
     return UploadGrant(
         document_id=document_id,
@@ -298,7 +299,9 @@ async def submit_claim(
     if claim.status not in {
         ClaimStatus.DRAFT,
         ClaimStatus.UPLOADING,
+        ClaimStatus.NEEDS_INFORMATION,
         ClaimStatus.SCANNING,
+        ClaimStatus.PROCESSING,
     }:
         raise HTTPException(status_code=409, detail="Claim is already submitted")
     documents = await repository.list_items(claim_id, "document")
@@ -318,7 +321,11 @@ async def submit_claim(
             status_code=400,
             detail="All uploads must be verified before submission",
         )
-   
+    validation_items = await repository.list_items(claim_id, "evidence_validation")
+    has_prior_information_request = any(
+        item.payload.get("status") == "needs_information"
+        for item in validation_items
+    )
     settings = get_settings()
     headers = {"x-functions-key": settings.function_key} if settings.function_key else {}
     async with httpx.AsyncClient(timeout=30) as client:
@@ -335,6 +342,10 @@ async def submit_claim(
                     document.id
                     for document in verified_documents
                 ],
+                "restart_workflow": (
+                    claim.status == ClaimStatus.NEEDS_INFORMATION
+                    or has_prior_information_request
+                ),
             },
         )
         if response.is_error:
