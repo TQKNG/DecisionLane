@@ -68,16 +68,22 @@ async def start_refund_workflow(
         )
     instance_id = f"refund-workflow:{body['claim_id']}"
 
-    # Check for timeout workflow instance. Avoid duplicates
-    existing = await client.get_status(instance_id)
-    if existing is not None:
-        if existing.input != body:
+    # Reuse active workflows and recover failed workflows without duplicating work.
+    existing = await client.get_status(instance_id, show_input=True)
+    if existing:
+        if existing.input_ != body:
             return func.HttpResponse(
                 "A different workflow already exists for this claim",
                 status_code=409,
             )
 
-        return client.create_check_status_response(req, instance_id)
+        if existing.runtime_status in {
+            df.OrchestrationRuntimeStatus.Failed,
+            df.OrchestrationRuntimeStatus.Terminated,
+        }:
+            await client.purge_instance_history(instance_id)
+        else:
+            return client.create_check_status_response(req, instance_id)
 
     try:
         await client.start_new(
@@ -88,7 +94,7 @@ async def start_refund_workflow(
     except Exception:
         # Handles two requests racing to create the same workflow.
         existing = await client.get_status(instance_id)
-        if existing is None:
+        if not existing:
             raise
 
     return client.create_check_status_response(req, instance_id)
