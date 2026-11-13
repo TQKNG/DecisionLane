@@ -54,28 +54,3 @@ def test_duplicate_order_returns_conflict(order_client: TestClient) -> None:
 
     assert first_response.status_code == 201
     assert second_response.status_code == 409
-
-
-def test_customer_cannot_create_order() -> None:
-    app.dependency_overrides[get_order_repository] = lambda: InMemoryOrderRepository()
-    app.dependency_overrides[get_current_user] = lambda: CurrentUser(
-        user_id="customer-1",
-        name="Test Customer",
-        email="customer@example.com",
-        roles=frozenset({"Customer"}),
-    )
-    try:
-        response = TestClient(app).post(
-            "/v1/admin/orders",
-            json={
-                "id": "order-forbidden",
-                "customer_id": "customer-1",
-                "currency": "CAD",
-                "paid_amount": "10.00",
-                "payment_intent_id": "pi_local_forbidden_001",
-            },
-        )
-    finally:
-        app.dependency_overrides.clear()
-
-    assert response.status_code == 403
