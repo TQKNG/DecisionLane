@@ -295,14 +295,11 @@ async def submit_claim(
     repository: ClaimRepositoryDep,
 ) -> ClaimSubmissionResponse:
     claim = await get_owned_claim(claim_id, user, repository)
-    if (claim.status == ClaimStatus.SCANNING
-    and claim.workflow_instance_id):
-        return ClaimSubmissionResponse(
-            status="scanning",
-            workflow_instance_id=claim.workflow_instance_id,
-        )
-
-    if claim.status not in {ClaimStatus.DRAFT, ClaimStatus.UPLOADING}:
+    if claim.status not in {
+        ClaimStatus.DRAFT,
+        ClaimStatus.UPLOADING,
+        ClaimStatus.SCANNING,
+    }:
         raise HTTPException(status_code=409, detail="Claim is already submitted")
     documents = await repository.list_items(claim_id, "document")
         
@@ -332,15 +329,25 @@ async def submit_claim(
         response = await client.post(
             f"{settings.function_base_url}/refund-workflows",
             headers=headers,
-        json={
-            "claim_id": claim_id,
-            "document_ids": [
-                document.id
-                for document in verified_documents
-            ],
-        },
+            json={
+                "claim_id": claim_id,
+                "document_ids": [
+                    document.id
+                    for document in verified_documents
+                ],
+            },
         )
-        response.raise_for_status()
+        if response.is_error:
+            detail = response.text.strip() or "Workflow service rejected the request"
+            if 400 <= response.status_code < 500:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=detail,
+                )
+            raise HTTPException(
+                status_code=502,
+                detail="Workflow service is unavailable",
+            )
     workflow_instance_id = response.json()["id"]
     claim.status = ClaimStatus.SCANNING
     claim.workflow_instance_id = workflow_instance_id
