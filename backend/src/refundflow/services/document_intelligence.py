@@ -10,6 +10,7 @@ from azure.core.credentials_async import AsyncTokenCredential
 from refundflow.domain.models import ExtractedDocument, SafetyAnalysis
 from refundflow.services.file_validation import validate_uploaded_file
 
+#TO-DO: Late auto mapping the field to key
 FIELD_ALIASES = {
     "order reference": "order_id",
     "order id": "order_id",
@@ -33,7 +34,9 @@ TEXT_FIELD_PATTERNS = {
         re.IGNORECASE,
     ),
     "total_amount": re.compile(
-        r"(?:total paid|total amount|total)\s*[:#]?\s*(\$?\s*[0-9][0-9,]*\.\d{2})",
+        r"(?:total paid|total amount|total)\s*[:#]?\s*"
+        r"(?:AUD|CAD|CHF|CNY|EUR|GBP|INR|JPY|NZD|USD)?\s*"
+        r"(\$?\s*[0-9][0-9,]*\.\d{2})",
         re.IGNORECASE,
     ),
 }

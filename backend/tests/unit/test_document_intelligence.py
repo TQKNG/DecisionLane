@@ -26,3 +26,27 @@ def test_dollar_symbol_does_not_infer_currency() -> None:
     )
 
     assert "currency" not in fields
+
+
+def test_falls_back_to_receipt_text_when_key_value_pairs_are_empty() -> None:
+    fields = normalize_extracted_fields(
+        {},
+        "DATE\n2026-10-06\nTOTAL PAID\n$94.92\n"
+        "ORDER REFERENCE\nRF-STD-10482\nCAD",
+    )
+
+    assert fields == {
+        "order_id": "RF-STD-10482",
+        "purchase_date": "2026-10-06",
+        "total_amount": "$94.92",
+        "currency": "CAD",
+    }
+
+
+def test_falls_back_to_total_with_currency_code_between_label_and_amount() -> None:
+    fields = normalize_extracted_fields(
+        {},
+        "TOTAL PAID\nCAD $94.92\nORDER REFERENCE RF-STD-10482",
+    )
+
+    assert fields["total_amount"] == "$94.92"
