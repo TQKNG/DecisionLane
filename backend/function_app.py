@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 
 import azure.durable_functions as df
@@ -14,7 +15,6 @@ from functions.services import ActivityServices
 from refundflow.config import get_settings
 from refundflow.domain.evidence_validation import evaluate_evidence_bundle
 from refundflow.domain.models import (
-    AssessmentResult,
     ClaimAggregateItem,
     ClaimDocument,
     ClaimStatus,
@@ -29,7 +29,7 @@ from refundflow.observability import claim_span
 from refundflow.repositories.orders import CosmosOrderRepository
 from refundflow.services.email import StatusEmailService
 from refundflow.services.malware import MalwareStatus
-from refundflow.services.payments import StripeRefundService
+from refundflow.services.payments import StripeRefundService, resolve_refund_amount
 from refundflow.workflows.assessment import run_assessment_workflow
 
 local_auth_level = (
@@ -622,12 +622,34 @@ async def execute_refund(activity_input) -> dict[str, object]:
         claim = await services.repository.get_claim(str(activity_input["claim_id"]))
         if claim is None:
             raise ValueError("Claim not found")
-        assessment = AssessmentResult.model_validate(activity_input["assessment"])
         order = await order_repository.get_order(claim.customer_id, claim.order_id)
         if order is None:
             raise ValueError("Order not found")
-        if assessment.proposed_refund_amount > order.paid_amount:
-            raise ValueError("Proposed amount exceeds paid amount")
+        extraction_items = await services.repository.list_items(claim.id, "extraction")
+        invoice_amounts: list[Decimal] = []
+        for item in extraction_items:
+            key_values = item.payload.get("key_values")
+            if not isinstance(key_values, dict):
+                continue
+            raw_amount = key_values.get("total_amount")
+            if raw_amount is None:
+                continue
+            try:
+                invoice_amounts.append(
+                    Decimal(str(raw_amount).replace("$", "").replace(",", "").strip())
+                )
+            except InvalidOperation:
+                continue
+        normalized_paid_amount = order.paid_amount.quantize(Decimal("0.01"))
+        invoice_amount = next(
+            (
+                amount
+                for amount in invoice_amounts
+                if amount.quantize(Decimal("0.01")) == normalized_paid_amount
+            ),
+            next((amount for amount in invoice_amounts if amount > 0), None),
+        )
+        refund_amount = resolve_refund_amount(order.paid_amount, invoice_amount)
         if not services.settings.stripe_secret_key:
             raise ValueError("Stripe secret key is not configured")
         payment_service = StripeRefundService(services.settings.stripe_secret_key)
@@ -636,7 +658,7 @@ async def execute_refund(activity_input) -> dict[str, object]:
                 payment_service.create_refund,
                 claim.id,
                 order.payment_intent_id,
-                assessment.proposed_refund_amount,
+                refund_amount,
                 order.currency,
             ),
             timeout=30,
