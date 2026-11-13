@@ -26,6 +26,7 @@ class Settings(BaseSettings):
 
     content_safety_endpoint: str = ""
     document_intelligence_endpoint: str=""
+    content_understanding_endpoint: str = ""
     content_understanding_document_analyzer_id: str = (
         "refund_evidence_document_classifier"
     )
