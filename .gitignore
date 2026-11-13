@@ -3,11 +3,16 @@
 .env.*
 !.env.example
 .venv/
+.vscode/
 __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 *.pyc
+backend/build/
+backend/src/refundflow.egg-info/
+backend/.azurite/
+backend/.azurite.backup-*/
 node_modules/
 .next/
 out/
