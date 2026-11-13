@@ -11,8 +11,8 @@ __pycache__/
 *.pyc
 backend/build/
 backend/src/refundflow.egg-info/
-backend/.azurite/
-backend/.azurite.backup-*/
+**/.azurite/
+**/.azurite.backup-*/
 node_modules/
 .next/
 out/
