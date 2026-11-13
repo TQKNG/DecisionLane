@@ -730,6 +730,90 @@
         }
       }
     },
+    "/v1/reviews/{claim_id}/documents/{document_id}": {
+      "get": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "Download claim evidence for review",
+        "description": "For a Reviewer or Admin, downloads evidence belonging to a claim under review. The document is read through the API and no Blob URL is exposed.",
+        "operationId": "download_review_document",
+        "security": [
+          {
+            "EntraBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of the claim.",
+              "title": "Claim Id"
+            },
+            "description": "Unique identifier of the claim."
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unique identifier of the document.",
+              "title": "Document Id"
+            },
+            "description": "Unique identifier of the document."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "The bearer token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The authenticated user does not have a required role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/reviews/{claim_id}/decision": {
       "post": {
         "tags": [
@@ -1214,6 +1298,147 @@
         ],
         "title": "AssessmentResult"
       },
+      "ClaimDocument": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "file_name": {
+            "type": "string",
+            "title": "File Name"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "blob_name": {
+            "type": "string",
+            "title": "Blob Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentProcessingStatus",
+            "default": "uploaded"
+          },
+          "upload_verification_status": {
+            "$ref": "#/components/schemas/UploadVerificationStatus",
+            "default": "pending"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "content_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Sha256"
+          },
+          "evidence_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence_confidence": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Confidence"
+          },
+          "evidence_validation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Validation"
+          },
+          "damage_visible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Damage Visible"
+          },
+          "image_quality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Quality"
+          },
+          "classification_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classification Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "claim_id",
+          "file_name",
+          "content_type",
+          "size_bytes",
+          "blob_name"
+        ],
+        "title": "ClaimDocument"
+      },
       "ClaimStatus": {
         "type": "string",
         "enum": [
@@ -1376,6 +1601,22 @@
         ],
         "title": "CriterionStatus"
       },
+      "DocumentProcessingStatus": {
+        "type": "string",
+        "enum": [
+          "uploaded",
+          "malware_scanning",
+          "malware_rejected",
+          "safety_scanning",
+          "safety_review_required",
+          "safety_blocked",
+          "ready_for_extraction",
+          "extracting",
+          "extraction_complete",
+          "processing_failed"
+        ],
+        "title": "DocumentProcessingStatus"
+      },
       "ErrorResponse": {
         "properties": {
           "detail": {
@@ -1388,6 +1629,93 @@
           "detail"
         ],
         "title": "ErrorResponse"
+      },
+      "EvidenceClassification": {
+        "properties": {
+          "evidence_type": {
+            "$ref": "#/components/schemas/EvidenceType"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          },
+          "image_quality": {
+            "type": "string",
+            "title": "Image Quality"
+          },
+          "shows_product": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shows Product"
+          },
+          "damage_visible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Damage Visible"
+          },
+          "damage_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Damage Type"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "validation_status": {
+            "type": "string",
+            "title": "Validation Status"
+          },
+          "analyzer_id": {
+            "type": "string",
+            "title": "Analyzer Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evidence_type",
+          "confidence",
+          "image_quality",
+          "reason",
+          "validation_status",
+          "analyzer_id"
+        ],
+        "title": "EvidenceClassification"
+      },
+      "EvidenceType": {
+        "type": "string",
+        "enum": [
+          "receipt",
+          "invoice",
+          "order_confirmation",
+          "tracking_evidence",
+          "damage_photo",
+          "product_photo",
+          "package_label",
+          "unreadable",
+          "other"
+        ],
+        "title": "EvidenceType"
       },
       "HTTPValidationError": {
         "properties": {
@@ -1581,6 +1909,13 @@
           "assessment": {
             "$ref": "#/components/schemas/AssessmentResult"
           },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewEvidenceDocument"
+            },
+            "type": "array",
+            "title": "Documents"
+          },
           "approvals": {
             "items": {
               "$ref": "#/components/schemas/ApprovalRecord"
@@ -1593,9 +1928,37 @@
         "required": [
           "claim",
           "assessment",
+          "documents",
           "approvals"
         ],
         "title": "ReviewDetail"
+      },
+      "ReviewEvidenceDocument": {
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/ClaimDocument"
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceClassification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "download_path": {
+            "type": "string",
+            "title": "Download Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document",
+          "download_path"
+        ],
+        "title": "ReviewEvidenceDocument"
       },
       "StripeWebhookResponse": {
         "properties": {
@@ -1694,6 +2057,15 @@
           "size_bytes"
         ],
         "title": "UploadRequest"
+      },
+      "UploadVerificationStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "verified",
+          "rejected"
+        ],
+        "title": "UploadVerificationStatus"
       },
       "ValidationError": {
         "properties": {

@@ -4,15 +4,25 @@ from collections import Counter
 from typing import Annotated, Literal
 
 import httpx
+from azure.core.exceptions import ResourceNotFoundError
+from azure.identity.aio import DefaultAzureCredential
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field
+from starlette.responses import Response
 
 from api.auth import CurrentUser, require_roles
 from api.dependencies import get_claim_repository
 from api.responses import error_responses
 from refundflow.config import get_settings
-from refundflow.domain.models import AssessmentResult, ClaimStatus, RefundClaim
+from refundflow.domain.models import (
+    AssessmentResult,
+    ClaimDocument,
+    ClaimStatus,
+    EvidenceClassification,
+    RefundClaim,
+)
 from refundflow.repositories.claims import ClaimRepository
+from refundflow.services.evidence_storage import EvidenceStorageService
 
 router = APIRouter(prefix="/v1")
 
@@ -30,9 +40,16 @@ class ApprovalRecord(BaseModel):
     comment: str
 
 
+class ReviewEvidenceDocument(BaseModel):
+    document: ClaimDocument
+    classification: EvidenceClassification | None = None
+    download_path: str
+
+
 class ReviewDetail(BaseModel):
     claim: RefundClaim
     assessment: AssessmentResult
+    documents: list[ReviewEvidenceDocument]
     approvals: list[ApprovalRecord]
 
 
@@ -104,12 +121,81 @@ async def get_review(
     assessments = await repository.list_items(claim_id, "assessment")
     if not assessments:
         raise HTTPException(status_code=409, detail="Assessment is not ready")
+    document_items = await repository.list_items(claim_id, "document")
+    classification_items = await repository.list_items(claim_id, "classification")
+    classifications = {
+        item.id.removeprefix("classification:"): EvidenceClassification.model_validate(
+            item.payload
+        )
+        for item in classification_items
+    }
+    documents = [
+        ReviewEvidenceDocument(
+            document=ClaimDocument.model_validate(item.payload),
+            classification=classifications.get(item.payload["id"]),
+            download_path=f"/v1/reviews/{claim_id}/documents/{item.payload['id']}",
+        )
+        for item in document_items
+    ]
     approvals = await repository.list_items(claim_id, "approval")
     return ReviewDetail(
         claim=claim,
         assessment=AssessmentResult.model_validate(assessments[-1].payload),
+        documents=documents,
         approvals=[ApprovalRecord.model_validate(item.payload) for item in approvals],
     )
+
+
+@router.get(
+    "/reviews/{claim_id}/documents/{document_id}",
+    response_class=Response,
+    tags=["reviews"],
+    operation_id="download_review_document",
+    summary="Download claim evidence for review",
+    description=(
+        "For a Reviewer or Admin, downloads evidence belonging to a claim under review. "
+        "The document is read through the API and no Blob URL is exposed."
+    ),
+    responses=error_responses(401, 403, 404),
+)
+async def download_review_document(
+    claim_id: Annotated[str, Path(description="Unique identifier of the claim.")],
+    document_id: Annotated[str, Path(description="Unique identifier of the document.")],
+    _: Annotated[CurrentUser, Depends(require_roles("Reviewer", "Admin"))],
+    repository: ClaimRepositoryDep,
+) -> Response:
+    claim = await repository.get_claim(claim_id)
+    if claim is None:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    document_items = await repository.list_items(claim_id, "document")
+    item = next(
+        (value for value in document_items if value.payload.get("id") == document_id),
+        None,
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    document = ClaimDocument.model_validate(item.payload)
+    settings = get_settings()
+    credential = DefaultAzureCredential()
+    storage = EvidenceStorageService(
+        settings.storage_account_url,
+        credential,
+        settings.quarantine_container,
+        settings.evidence_container,
+    )
+    try:
+        try:
+            content = await storage.download_evidence(document.blob_name)
+        except ResourceNotFoundError:
+            content = await storage.download_quarantined(document.blob_name)
+    except ResourceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Evidence content not found") from exc
+    finally:
+        await storage.close()
+        await credential.close()
+
+    return Response(content=content, media_type=document.content_type)
 
 
 @router.post(

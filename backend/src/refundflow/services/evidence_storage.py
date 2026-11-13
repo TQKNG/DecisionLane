@@ -24,6 +24,13 @@ class EvidenceStorageService:
         ).download_blob(max_concurrency=1)
         return await downloader.readall()
 
+    async def download_evidence(self, blob_name: str) -> bytes:
+        downloader = await self._client.get_blob_client(
+            self._evidence,
+            blob_name,
+        ).download_blob(max_concurrency=1)
+        return await downloader.readall()
+
     async def promote(self, blob_name:str, content:bytes, content_type:str)-> None:
         target = self._client.get_blob_client(self._evidence, blob_name)
         await target.upload_blob(
@@ -35,4 +42,3 @@ class EvidenceStorageService:
 
     async def close(self) -> None:
         await self._client.close()
-        
