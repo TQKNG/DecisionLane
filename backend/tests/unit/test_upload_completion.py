@@ -1,11 +1,9 @@
-from types import SimpleNamespace
-
 from io import BytesIO
-
-from PIL import Image
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from PIL import Image
 
 from api.auth import CurrentUser
 from api.routers.uploads import complete_upload
@@ -260,3 +258,15 @@ async def test_complete_upload_rejects_invalid_file_content() -> None:
         email="customer@example.com",
         roles=frozenset({"Customer"}),
     )
+
+    with pytest.raises(HTTPException) as error:
+        await complete_upload(
+            claim_id="claim-1",
+            document_id="document-1",
+            user=user,
+            repository=repository,
+            blob_service=blob_service,
+        )
+
+    assert error.value.status_code == 400
+    assert "readable image" in str(error.value.detail)

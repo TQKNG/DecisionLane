@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-import pypdfium2 as pdfium  # type: ignore[import-untyped]
+import pypdfium2 as pdfium
 from azure.ai.documentintelligence.aio import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 from azure.core.credentials_async import AsyncTokenCredential
