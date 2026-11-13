@@ -23,6 +23,20 @@ FIELD_ALIASES = {
 }
 
 CURRENCY_CODE_PATTERN = re.compile(r"\b(?:AUD|CAD|CHF|CNY|EUR|GBP|INR|JPY|NZD|USD)\b")
+TEXT_FIELD_PATTERNS = {
+    "order_id": re.compile(
+        r"(?:order reference|order id|order number)\s*[:#]?\s*([A-Z0-9][A-Z0-9-]+)",
+        re.IGNORECASE,
+    ),
+    "purchase_date": re.compile(
+        r"(?:purchase date|date)\s*[:#]?\s*(\d{4}-\d{2}-\d{2})",
+        re.IGNORECASE,
+    ),
+    "total_amount": re.compile(
+        r"(?:total paid|total amount|total)\s*[:#]?\s*(\$?\s*[0-9][0-9,]*\.\d{2})",
+        re.IGNORECASE,
+    ),
+}
 
 
 def _normalize_label(label: str) -> str:
@@ -54,6 +68,12 @@ def normalize_extracted_fields(
     currency = _find_currency_code(currency_candidates + [text])
     if currency:
         normalized["currency"] = currency
+
+    for field_name, pattern in TEXT_FIELD_PATTERNS.items():
+        if field_name not in normalized:
+            match = pattern.search(text)
+            if match:
+                normalized[field_name] = match.group(1).strip()
 
     return normalized
 
