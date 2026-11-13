@@ -291,10 +291,7 @@ def refund_orchestrator(context: df.DurableOrchestrationContext):
                 "set_claim_status",
                 {"claim_id": claim_id, "status": ClaimStatus.REJECTED.value},
             )
-            yield context.call_activity(
-                "send_status_email",
-                {"claim_id": claim_id, "status": "rejected"},
-            )
+            yield from notify_claim_status(context, claim_id, "rejected")
             return {"status": "rejected", "reason": "reviewer_rejected"}
         reviewer_ids.append(decision["reviewer_id"])
 
@@ -311,11 +308,37 @@ def refund_orchestrator(context: df.DurableOrchestrationContext):
         "set_claim_status",
         {"claim_id": claim_id, "status": ClaimStatus.REFUND_SUBMITTED.value},
     )
-    yield context.call_activity(
-        "send_status_email",
-        {"claim_id": claim_id, "status": "refund_submitted"},
-    )
+    yield from notify_claim_status(context, claim_id, "refund_submitted")
     return {"status": "refund_submitted", "refund": refund}
+
+
+def notify_claim_status(context, claim_id: str, status: str):
+    try:
+        result = yield context.call_activity_with_retry(
+            "send_status_email",
+            df.RetryOptions(
+                first_retry_interval_in_milliseconds=5000,
+                max_number_of_attempts=3,
+            ),
+            {"claim_id": claim_id, "status": status},
+        )
+        yield context.call_activity(
+            "record_notification",
+            {
+                "claim_id": claim_id,
+                "status": status,
+                "outcome": result["outcome"],
+            },
+        )
+    except Exception:
+        yield context.call_activity(
+            "record_notification",
+            {
+                "claim_id": claim_id,
+                "status": status,
+                "outcome": "failed",
+            },
+        )
 
 
 async def load_claim_and_document(
@@ -634,7 +657,7 @@ async def execute_refund(activity_input) -> dict[str, object]:
 
 @app.activity_trigger(input_name="activity_input")
 @traced_activity("refundflow.send_status_email", "status_notification")
-async def send_status_email(activity_input) -> None:
+async def send_status_email(activity_input) -> dict[str, str]:
     services = ActivityServices()
     try:
         claim = await services.repository.get_claim(activity_input["claim_id"])
@@ -644,7 +667,7 @@ async def send_status_email(activity_input) -> None:
             services.settings.acs_email_endpoint
             and services.settings.acs_sender_address
         ):
-            return
+            return {"outcome": "skipped"}
         email_credential = SyncDefaultAzureCredential()
         email_service = StatusEmailService(
             services.settings.acs_email_endpoint,
@@ -653,7 +676,28 @@ async def send_status_email(activity_input) -> None:
         )
         try:
             email_service.send(claim.customer_email, claim.id, activity_input["status"])
+            return {"outcome": "sent"}
         finally:
             email_credential.close()
+    finally:
+        await services.close()
+
+
+@app.activity_trigger(input_name="activity_input")
+@traced_activity("refundflow.record_notification", "notification_recording")
+async def record_notification(activity_input) -> None:
+    services = ActivityServices()
+    try:
+        await services.repository.upsert_item(
+            ClaimAggregateItem(
+                id=f"notification:{activity_input['status']}",
+                claim_id=activity_input["claim_id"],
+                item_type="notification",
+                payload={
+                    "status": activity_input["status"],
+                    "outcome": activity_input["outcome"],
+                },
+            )
+        )
     finally:
         await services.close()
