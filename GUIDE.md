@@ -1018,8 +1018,9 @@ def test_create_and_read_claim() -> None:
 Run the API and tests:
 
 ```bash
-cd python
+cd backend
 source .venv/bin/activate
+python -m pip install --no-deps --editable .
 ruff check .
 mypy src api
 pytest -q
@@ -4181,6 +4182,57 @@ uvicorn api.main:app --reload --port 8000
 The local flow still uses Azure Cosmos DB, Blob Storage, Content Safety, Document Intelligence, Search, and Foundry.
 Azurite stores only Durable Functions control state.
 
+### 14.5 Stop and resume the local workflow
+
+Stop the local processes with `Ctrl+C` in this order:
+
+1. FastAPI.
+2. Azure Functions Core Tools.
+3. Azurite.
+
+Keep the Azurite data directory so Durable Functions can resume workflow state after a restart.
+Do not delete `.azurite` unless you intentionally want to reset local workflow state.
+
+Start Azurite in a terminal from the current `backend` directory:
+
+```bash
+cd backend
+mkdir -p .azurite
+azurite --location .azurite --silent --skipApiVersionCheck
+```
+
+Start the Azure Functions host in a second terminal:
+
+```bash
+cd backend
+source .venv/bin/activate
+PATH="$PWD/.venv/bin:$PATH" \
+PYTHONPATH="$PWD/src" \
+APP_ENV=local \
+func start --verbose --port 7071
+```
+
+Wait until the startup output lists the `Functions:` section before sending workflow requests.
+The output must not contain `Worker failed to index functions` or `No HTTP routes mapped`.
+
+Start FastAPI in a third terminal:
+
+```bash
+cd backend
+source .venv/bin/activate
+PYTHONPATH=src uvicorn api.main:app --reload --port 8080
+```
+
+If a claim already has a `workflow_instance_id`, do not submit it again.
+Query the claim and allow the existing Durable workflow to resume:
+
+```http
+GET http://localhost:8080/v1/claims/{claim_id}
+```
+
+If the local Azurite data was deleted or was not persisted, the workflow state cannot be resumed.
+Create a new claim and upload its evidence again before submitting it.
+
 Commit the orchestration:
 
 ```bash
@@ -6919,3 +6971,73 @@ Use these commits as learning checkpoints:
 
 Do not move to the next checkpoint while the current checkpoint's tests fail.
 This order keeps each failure local and makes the final system understandable rather than merely assembled.
+
+## 26. Side Note
+
+### Local testing
+Start Azurite in one terminal:
+
+```bash
+mkdir -p backend/.azurite
+azurite --location backend/.azurite --silent --skipApiVersionCheck
+```
+
+Start Azure Functions Core Tools in a second terminal:
+
+```bash
+cd backend
+source .venv/bin/activate
+PATH="$PWD/.venv/bin:$PATH" \
+PYTHONPATH="$PWD/src" \
+APP_ENV=local \
+func start --verbose --port 7071
+```
+
+Acquire an admin token in a third terminal:
+
+```bash
+export API_SCOPE="api://614a8703-114d-4161-90f6-1765f3c239cd/access_as_user"
+az login --tenant "ecb3e9db-068d-4a6b-aeed-dcddda87a83d"
+
+export API_TOKEN="$(az account get-access-token \
+  --scope "$API_SCOPE" \
+  --query accessToken \
+  --output tsv)"
+
+export COSMOS_ENDPOINT=https://refundflow-dev-cosmos-hqw5bsyilvkj6.documents.azure.com:443
+
+curl --fail-with-body \
+  --header "Authorization: Bearer $API_TOKEN" \
+  "http://localhost:8080/v1/claims"
+```
+
+Listen to stripe webhook
+
+```bash
+cd /Users/khanhnguyen/Documents/Development/Repositories/Personal/PennyWorth/backend
+source .venv/bin/activate
+
+PYTHONPATH=src uvicorn api.main:app \
+  --reload \
+  --host 0.0.0.0 \
+  --port 8000
+```
+
+Verify it:
+
+```bash
+curl http://localhost:8000/health/live
+```
+
+Then trigger the Stripe update again with a new value:
+
+```bash
+stripe refunds update re_3UYUSdBpjGGntU7J2Rf2PjcI \
+  -d "metadata[claim_id]=8f75bc2f-abf2-4a8c-a135-7ea5998ea2c5" \
+  -d "metadata[test_trigger]=notification-check-4"
+```
+
+Expected Stripe listener output:
+
+--> refund.updated
+<-- 200
