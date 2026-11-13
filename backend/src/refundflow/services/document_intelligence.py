@@ -34,7 +34,7 @@ TEXT_FIELD_PATTERNS = {
         re.IGNORECASE,
     ),
     "total_amount": re.compile(
-        r"(?:total paid|total amount|total)\s*[:#]?\s*"
+        r"\b(?:total paid|total amount|total)\b\s*[:#]?\s*"
         r"(?:AUD|CAD|CHF|CNY|EUR|GBP|INR|JPY|NZD|USD)?\s*"
         r"(\$?\s*[0-9][0-9,]*\.\d{2})",
         re.IGNORECASE,

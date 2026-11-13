@@ -50,3 +50,12 @@ def test_falls_back_to_total_with_currency_code_between_label_and_amount() -> No
     )
 
     assert fields["total_amount"] == "$94.92"
+
+
+def test_does_not_treat_subtotal_as_total_amount() -> None:
+    fields = normalize_extracted_fields(
+        {},
+        "SUBTOTAL\n$84.00\nTAX\n$10.92\nTOTAL PAID\n$94.92",
+    )
+
+    assert fields["total_amount"] == "$94.92"
