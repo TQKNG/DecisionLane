@@ -225,8 +225,19 @@ async def decide_review(
     if claim.status != ClaimStatus.PENDING_APPROVAL or not claim.workflow_instance_id:
         raise HTTPException(status_code=409, detail="Claim is not awaiting approval")
     existing = await repository.list_items(claim_id, "approval")
-    if any(item.payload.get("reviewer_id") == user.user_id for item in existing):
-        raise HTTPException(status_code=409, detail="Reviewer already decided this claim")
+    prior_decision = next(
+        (
+            item.payload
+            for item in existing
+            if item.payload.get("reviewer_id") == user.user_id
+        ),
+        None,
+    )
+    if prior_decision and prior_decision.get("decision") != body.decision:
+        raise HTTPException(
+            status_code=409,
+            detail="Reviewer already submitted a different decision",
+        )
 
     settings = get_settings()
     headers = {"x-functions-key": settings.function_key} if settings.function_key else {}
