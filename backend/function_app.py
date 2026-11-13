@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+import json
 import os
 from datetime import timedelta
 from functools import wraps
 
 import azure.durable_functions as df
 import azure.functions as func
+from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import DefaultAzureCredential as SyncDefaultAzureCredential
 
 from functions.services import ActivityServices
@@ -50,6 +53,17 @@ def traced_activity(name: str, stage: str):
     return decorate
 
 
+def normalize_workflow_input(value: object) -> dict[str, object]:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Stored workflow input must be a JSON object") from exc
+    if not isinstance(value, dict):
+        raise ValueError("Stored workflow input must be a JSON object")
+    return dict(value)
+
+
 @app.route(
     route="refund-workflows",
     methods=["POST"],
@@ -80,12 +94,16 @@ async def start_refund_workflow(
             and existing.runtime_status == df.OrchestrationRuntimeStatus.Completed
         ):
             await client.purge_instance_history(instance_id)
-        elif existing.input_ != body:
-            return func.HttpResponse(
-                "A different workflow already exists for this claim",
-                status_code=409,
-            )
         else:
+            existing_input = normalize_workflow_input(existing.input_)
+            requested_input = normalize_workflow_input(body)
+            existing_input.pop("restart_workflow", None)
+            requested_input.pop("restart_workflow", None)
+            if existing_input != requested_input:
+                return func.HttpResponse(
+                    "A different workflow already exists for this claim",
+                    status_code=409,
+                )
             return client.create_check_status_response(req, instance_id)
 
     try:
@@ -258,6 +276,13 @@ def refund_orchestrator(context: df.DurableOrchestrationContext):
             return {"status": "closed", "reason": "approval_timeout"}
         timeout_task.cancel()
         decision = approval_task.result
+        if isinstance(decision, str):
+            try:
+                decision = json.loads(decision)
+            except json.JSONDecodeError as exc:
+                raise ValueError("Approval event must contain a JSON object") from exc
+        if not isinstance(decision, dict):
+            raise ValueError("Approval event must contain a JSON object")
         if decision["reviewer_id"] in reviewer_ids:
             continue
         yield context.call_activity("record_approval", decision)
@@ -363,7 +388,12 @@ async def check_malware_status(activity_input) -> str:
             activity_input["claim_id"],
             activity_input["document_id"],
         )
-        return (await services.malware.get_status(document.blob_name)).value
+        try:
+            status = await services.malware.get_status(document.blob_name)
+        except ResourceNotFoundError:
+            await services.evidence_storage.download_evidence(document.blob_name)
+            status = MalwareStatus.CLEAN
+        return status.value
     finally:
         await services.close()
 
@@ -575,12 +605,18 @@ async def execute_refund(activity_input) -> dict[str, object]:
             raise ValueError("Order not found")
         if assessment.proposed_refund_amount > order.paid_amount:
             raise ValueError("Proposed amount exceeds paid amount")
-        payment_service = StripeRefundService(os.environ["STRIPE_SECRET_KEY"])
-        result = payment_service.create_refund(
-            claim.id,
-            order.payment_intent_id,
-            assessment.proposed_refund_amount,
-            order.currency
+        if not services.settings.stripe_secret_key:
+            raise ValueError("Stripe secret key is not configured")
+        payment_service = StripeRefundService(services.settings.stripe_secret_key)
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                payment_service.create_refund,
+                claim.id,
+                order.payment_intent_id,
+                assessment.proposed_refund_amount,
+                order.currency,
+            ),
+            timeout=30,
         )
         await services.repository.upsert_item(
             ClaimAggregateItem(
@@ -604,10 +640,15 @@ async def send_status_email(activity_input) -> None:
         claim = await services.repository.get_claim(activity_input["claim_id"])
         if claim is None:
             raise ValueError("Claim not found")
+        if not (
+            services.settings.acs_email_endpoint
+            and services.settings.acs_sender_address
+        ):
+            return
         email_credential = SyncDefaultAzureCredential()
         email_service = StatusEmailService(
-            os.environ["ACS_EMAIL_ENDPOINT"],
-            os.environ["ACS_SENDER_ADDRESS"],
+            services.settings.acs_email_endpoint,
+            services.settings.acs_sender_address,
             email_credential
         )
         try:
