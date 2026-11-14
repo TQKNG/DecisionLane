@@ -1,4 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RefundFlow frontend
+
+This is the frontend foundation for RefundFlow.
+It currently provides Microsoft Entra ID sign-in, a minimal authenticated shell, Redux Toolkit/RTK Query state-management scaffolding, and shadcn/ui-style components for future features.
+
+The app is configured for a static export, uses client-side MSAL authentication, and supports light, dark, and system themes.
+
+## Environment
+
+Configure these public variables before enabling live sign-in:
+
+```text
+NEXT_PUBLIC_ENTRA_CLIENT_ID=
+NEXT_PUBLIC_ENTRA_TENANT_ID=
+NEXT_PUBLIC_API_SCOPE=
+NEXT_PUBLIC_API_BASE_URL=
+```
+
+`NEXT_PUBLIC_API_SCOPE` and `NEXT_PUBLIC_API_BASE_URL` are retained for the future API layer.
+
+## Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+The development server runs at `http://localhost:3000`.
+
+## Verification
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm build
+```
 
 ## Getting Started
 

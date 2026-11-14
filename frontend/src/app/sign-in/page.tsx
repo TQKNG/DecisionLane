@@ -1,9 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useMsal } from "@azure/msal-react";
-import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { useSession } from "@/components/providers";
+import { ENTRA_CONFIGURED, LOGIN_REQUEST } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { AUTH_CONFIGURED, LOGIN_REQUEST } from "@/lib/auth";
-export default function SignInPage() { const { instance } = useMsal(); const session = useSession(); const router = useRouter(); const [error, setError] = useState(""); return <AppShell><section className="surface welcome"><p className="eyebrow">SECURE CUSTOMER PORTAL</p><h1 className="page-title">A clear path to your refund.</h1><p className="page-subtitle">Share your evidence. Follow the review. Know what comes next.</p>{error && <p role="alert" className="error-summary">{error}</p>}<div className="button-row"><Button disabled={!AUTH_CONFIGURED} onClick={() => instance.loginRedirect(LOGIN_REQUEST).catch(error => setError(String(error)))}>Sign in with Microsoft</Button><Button variant="secondary" onClick={() => { session.setDemo("Customer"); router.push("/claims"); }}>Explore demo</Button></div><p className="helper">Demo uses synthetic data and never processes a payment.</p></section></AppShell>; }
+export default function SignInPage() { const { instance } = useMsal(); const [error, setError] = useState(""); return <AppShell><section className="surface welcome"><p className="eyebrow">SECURE WORKSPACE</p><h1 className="page-title">Sign in to continue.</h1><p className="page-subtitle">Use your Microsoft Entra ID account to access RefundFlow.</p>{error && <p role="alert" className="error-summary">{error}</p>}<div className="button-row"><Button disabled={!ENTRA_CONFIGURED} onClick={() => instance.loginRedirect(LOGIN_REQUEST).catch(error => setError(String(error)))}>Sign in with Microsoft</Button></div>{!ENTRA_CONFIGURED && <p className="helper">Configure the Entra client and tenant environment variables first.</p>}</section></AppShell>; }

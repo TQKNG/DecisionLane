@@ -4,8 +4,8 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "RefundFlow AI",
-  description: "Evidence-grounded refund review",
+  title: "RefundFlow",
+  description: "RefundFlow application",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
