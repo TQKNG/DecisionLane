@@ -98,8 +98,9 @@ The [weekly Foundry evaluation](.github/workflows/evaluate.yml) runs on a schedu
 Configure the `dev` environment with the Azure OIDC variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, and `AZURE_RESOURCE_GROUP`, plus the service variables referenced by the deployment and evaluation workflows.
 Store the Static Web Apps deployment token as `AZURE_STATIC_WEB_APPS_API_TOKEN` in GitHub Actions secrets.
 Keep Azure and Stripe runtime secrets in Key Vault rather than repository files.
-After a successful CI run on the published workflows, protect `master` in GitHub Settings so pull requests and the `python`, `frontend`, and `infrastructure` checks are required before merging.
-The branch protection setting is managed in GitHub, not by these workflow files.
+The public repository protects `master` with required pull requests, resolved review conversations, and the `frontend` and `infrastructure` CI checks.
+The `python` check must also become required after its existing backend lint failures are fixed and a green run is observed.
+Branch protection is managed in GitHub Settings, not by these workflow files.
 
 ## Project policies
 
