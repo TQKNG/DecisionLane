@@ -18,8 +18,6 @@ The frontend is Next.js with static-export compatibility, MSAL, Redux Toolkit, a
 - frontend/tests: frontend data-boundary tests.
 - infra/main.bicep: infrastructure source of truth.
 - backend/openapi/openapi.json: generated OpenAPI artifact.
-- spec/: implementation specifications.
-- tasks/: Spec Kit-style executable task breakdowns.
 - GUIDE.md: broad sequential build and deployment guide.
 - graphify-out/: generated knowledge graph and navigation artifacts.
 
@@ -60,27 +58,6 @@ Use graphify path "<A>" "<B>" and graphify explain "<concept>" for focused quest
 Dirty graphify output is not a reason to skip graphify.
 After modifying code, run graphify update . from the repository root.
 
-## Spec-driven work
 
-DO NOT IMPLEMENT below
-Read the relevant spec/<spec>.md and tasks/<spec-slug>/tasks.md before implementation.
-Implement only an unchecked task whose dependencies are complete.
-Read the assigned task.md, relevant nested AGENTS.md files, and the current implementation of owned files before editing.
-Workers must edit only their assigned files, must not spawn nested agents, and must report handoff evidence.
-The coordinator owns task decomposition, shared files, dependency changes, checklist updates, integration, and final verification.
-Use separate worktrees for concurrent writers when available.
-Run integrated checks only after accepted worker changes are combined.
 
-Use these repository skills for detailed workflows:
 
-- .codex/skills/spec-driven-development/SKILL.md
-- .codex/skills/backend-development/SKILL.md
-- .codex/skills/openapi-contract/SKILL.md
-- .codex/skills/repository-documentation/SKILL.md
-
-Use these repository agent profiles for bounded roles:
-
-- .codex/agents/spec-coordinator.toml
-- .codex/agents/backend-builder.toml
-- .codex/agents/backend-reviewer.toml
-- .codex/agents/documentation-editor.toml
