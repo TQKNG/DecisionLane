@@ -23,7 +23,8 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - uses: azure/setup-bicep@v2
+      - name: Validate infrastructure template
+        run: az bicep build --file infra/main.bicep
       - name: Deploy infrastructure
         run: |
           az deployment group create \
