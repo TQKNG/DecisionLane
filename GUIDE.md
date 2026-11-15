@@ -1,6 +1,7 @@
-# RefundFlow AI: Complete Build Guide
+# DecisionLane: Refund Claim Build Guide
 
-This guide builds the cost-optimized RefundFlow AI application from an empty directory.
+This guide builds the refund claim workflow for DecisionLane from an empty directory.
+The existing Python package and Azure resource identifiers use `refundflow` throughout the guide.
 It is written for a developer who knows Python and web development but is new to Microsoft Agent Framework and the surrounding Azure services.
 Follow the steps in order because each milestone creates contracts used by the next milestone.
 
@@ -964,7 +965,7 @@ from refundflow.config import get_settings
 
 
 settings = get_settings()
-app = FastAPI(title="RefundFlow API", version="0.1.0")
+app = FastAPI(title="DecisionLane API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origin_list,
@@ -1953,7 +1954,7 @@ az cognitiveservices account project create \
   --name "$FOUNDRY_RESOURCE_NAME" \
   --project-name "$FOUNDRY_PROJECT_NAME" \
   --location "$FOUNDRY_LOCATION" \
-  --display-name 'RefundFlow Development'
+  --display-name 'DecisionLane Development'
 ```
 
 Capture both endpoints:
@@ -2423,7 +2424,7 @@ Create the API registration and its service principal:
 export TENANT_ID='ecb3e9db-068d-4a6b-aeed-dcddda87a83d'
 
 export API_APP_OBJECT_ID=$(az ad app create \
-  --display-name 'RefundFlow API dev' \
+  --display-name 'DecisionLane API dev' \
   --sign-in-audience AzureADMyOrg \
   --query id -o tsv)
 
@@ -2458,12 +2459,12 @@ jq -n \
       requestedAccessTokenVersion: 2,
       oauth2PermissionScopes: [{
         id: $scope_id,
-        adminConsentDescription: "Use RefundFlow as the signed-in user",
-        adminConsentDisplayName: "Access RefundFlow",
+        adminConsentDescription: "Use DecisionLane as the signed-in user",
+        adminConsentDisplayName: "Access DecisionLane",
         isEnabled: true,
         type: "User",
-        userConsentDescription: "Use RefundFlow as you",
-        userConsentDisplayName: "Access RefundFlow",
+        userConsentDescription: "Use DecisionLane as you",
+        userConsentDisplayName: "Access DecisionLane",
         value: "access_as_user"
       }]
     },
@@ -2487,7 +2488,7 @@ jq -n \
       {
         id: $admin_role_id,
         allowedMemberTypes: ["User"],
-        description: "View operations and administer RefundFlow",
+        description: "View operations and administer DecisionLane",
         displayName: "Admin",
         isEnabled: true,
         value: "Admin"
@@ -2506,7 +2507,7 @@ Create the SPA registration:
 
 ```bash
 export SPA_APP_OBJECT_ID=$(az ad app create \
-  --display-name "RefundFlow Web dev" \
+  --display-name "DecisionLane Web dev" \
   --sign-in-audience AzureADMyOrg \
   --query id \
   -o tsv)
@@ -5120,7 +5121,7 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "RefundFlow AI",
+  title: "DecisionLane",
   description: "Evidence-grounded refund review",
 };
 
@@ -5157,7 +5158,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="mx-auto flex min-h-screen max-w-4xl items-center px-6">
         <section className="rounded-3xl border border-slate-700 bg-slate-900 p-10 shadow-2xl">
           <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-cyan-400">
-            RefundFlow AI
+            DecisionLane
           </p>
           <h1 className="text-4xl font-semibold">Refund decisions with visible evidence.</h1>
           <p className="mt-4 max-w-xl text-slate-300">
@@ -5178,7 +5179,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen">
       <header className="border-b border-slate-800 bg-slate-900/90">
         <nav className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-4">
-          <Link href="/" className="mr-auto text-xl font-semibold text-cyan-400">RefundFlow</Link>
+          <Link href="/" className="mr-auto text-xl font-semibold text-cyan-400">DecisionLane</Link>
           <Link href="/claims">Claims</Link>
           {roles.includes("Customer") && <Link href="/claims/new">New claim</Link>}
           {(roles.includes("Reviewer") || roles.includes("Admin")) && (
@@ -5204,7 +5205,7 @@ import { AppShell } from "@/components/app-shell";
 export default function HomePage() {
   return (
     <AppShell>
-      <h1 className="text-3xl font-semibold">Welcome to RefundFlow AI</h1>
+      <h1 className="text-3xl font-semibold">Welcome to DecisionLane</h1>
       <p className="mt-3 text-slate-300">
         Use the navigation to submit a claim or review the operations queue.
       </p>

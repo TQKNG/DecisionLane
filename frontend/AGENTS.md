@@ -6,7 +6,7 @@ The root instructions remain authoritative when rules overlap.
 
 ## Purpose
 
-PennyWorth is the RefundFlow refund-claim application.
+DecisionLane is a decision support application whose current backend implements refund claims.
 The frontend is currently a clean foundation for Microsoft Entra ID authentication and future feature work.
 Do not recreate the removed claim, reviewer, operations, or demo workflows unless the task explicitly requests them.
 

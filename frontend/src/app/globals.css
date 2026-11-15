@@ -106,7 +106,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 button:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
 .skip-link { left: 12px; position: fixed; top: -80px; z-index: 10; }
 .skip-link:focus { top: 12px; }
-/* Decision Lane foundations and reusable patterns. */
+/* DecisionLane foundations and reusable patterns. */
 :is(a, button, input, select, textarea, summary):focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
 .skip-link { background: var(--primary); color: var(--primary-foreground); padding: var(--space-2) var(--space-3); border-radius: var(--radius-field); }
 .dl-brand { display: inline-flex; align-items: center; gap: 3px; font-size: 21px; font-weight: 650; letter-spacing: -.06em; white-space: nowrap; }
@@ -186,6 +186,40 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-
 .dl-auth-footer { display: flex; justify-content: space-between; gap: 12px; padding: 15px 4vw; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 13px; }
 .theme-toggle { display: flex; flex-wrap: wrap; gap: 4px; }
 .theme-toggle button { text-transform: capitalize; }
+.dl-landing { min-height: 100vh; overflow: hidden; }
+.dl-landing-nav { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 5vw; }
+.dl-landing-actions { display: flex; align-items: center; gap: 18px; }
+.dl-landing-hero { position: relative; min-height: 460px; padding: 62px 5vw 0; }
+.dl-landing-hero h1 { position: relative; z-index: 1; max-width: 590px; margin: 0; font-size: clamp(58px, 7vw, 96px); line-height: .97; letter-spacing: -.075em; }
+.dl-landing-hero p { position: relative; z-index: 1; max-width: 460px; color: var(--muted-foreground); font-size: 22px; }
+.dl-landing-hero .dl-flow-art { bottom: -25px; z-index: 0; height: 360px; }
+.dl-features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 30px; padding: 35px 5vw; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.dl-feature { display: flex; align-items: flex-start; gap: 14px; }
+.dl-feature svg { width: 28px; height: 28px; flex: none; color: var(--brand-foreground); }
+.dl-feature h2 { margin: 0 0 3px; font-size: 19px; }
+.dl-feature p { margin: 0; color: var(--muted-foreground); }
+.dl-demo { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; margin: 50px 5vw; padding: 22px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow-card); }
+.dl-demo-cases h2 { margin: 0 0 12px; font-size: 19px; }
+.dl-demo-cases p { margin: 10px 0; color: var(--muted-foreground); }
+.dl-demo-cases > p:first-of-type { color: var(--foreground); }
+.dl-demo-detail > h2 { margin: 0; font-size: 24px; letter-spacing: -.035em; }
+.dl-demo-muted { margin: 0 0 16px; color: var(--muted-foreground); }
+.dl-demo-suggestion { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--accent); }
+.dl-demo-suggestion > span { color: var(--brand-foreground); font-weight: 600; }
+.dl-demo-suggestion h3 { margin: 4px 0; font-size: 23px; }
+.dl-demo-suggestion p { margin: 0; }
+.dl-demo-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
+.dl-demo-metric { display: flex; align-items: center; gap: 12px; min-height: 88px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-control); }
+.dl-demo-metric > span { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 12px; background: var(--accent); color: var(--brand-foreground); font-size: 20px; }
+.dl-demo-metric strong { display: block; font-size: 23px; line-height: 1.1; }
+.dl-demo-citations { color: var(--muted-foreground); line-height: 1.7; }
+.dl-demo-citations strong { color: var(--foreground); }
+.dl-demo-action { display: flex; justify-content: flex-end; }
+.dl-quote { padding: 50px 20px 75px; text-align: center; }
+.dl-quote blockquote { margin: 0; font-family: Georgia, serif; font-size: clamp(36px, 4vw, 58px); }
+.dl-quote p { color: var(--muted-foreground); font-size: 18px; }
+.dl-landing-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 5vw; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 13px; }
+.dl-landing-footer .dl-brand { color: var(--foreground); font-size: 16px; }
 @media (max-width: 1250px) { :root { --sidebar-width: 13.75rem; } .dl-content { padding: 16px 20px; } }
 @media (max-width: 900px) {
   .dl-app { display: block; }
@@ -201,6 +235,9 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-
   .dl-auth-art { min-height: 250px; }
   .dl-auth-art h1 { margin-top: 30px; }
   .dl-flow-art { display: none; }
+  .dl-landing-hero { min-height: 520px; }
+  .dl-features { grid-template-columns: 1fr; gap: 22px; }
+  .dl-demo { grid-template-columns: 160px minmax(0, 1fr); }
 }
 @media (max-width: 600px) {
   .dl-page-head { display: block; }
@@ -214,4 +251,21 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-
   .dl-auth-card { padding: 25px; }
   .dl-auth-card h2 { font-size: 32px; }
   .dl-auth-footer { flex-wrap: wrap; }
+  .dl-landing-nav { align-items: flex-start; }
+  .dl-landing-actions { flex-direction: column-reverse; align-items: flex-end; gap: 8px; }
+  .dl-landing-actions .theme-toggle { flex-wrap: nowrap; }
+  .dl-landing-actions .theme-toggle button { min-height: 30px; padding: 4px 7px; font-size: 11px; }
+  .dl-landing-actions > a { min-height: 34px; padding: 5px 12px; font-size: 13px; }
+  .dl-landing-hero { min-height: 500px; padding-top: 55px; }
+  .dl-landing-hero h1 { font-size: 54px; }
+  .dl-landing-hero p { max-width: 360px; font-size: 18px; }
+  .dl-demo { display: block; margin: 30px 5vw; padding: 16px; }
+  .dl-demo-cases { display: none; }
+  .dl-demo-metrics { gap: 8px; }
+  .dl-demo-metric { display: block; min-height: 90px; padding: 8px; font-size: 12px; }
+  .dl-demo-metric > span { width: 30px; height: 30px; margin-bottom: 5px; }
+  .dl-demo-metric strong { font-size: 18px; }
+  .dl-demo-action { justify-content: stretch; }
+  .dl-demo-action .button { width: 100%; }
+  .dl-landing-footer { flex-wrap: wrap; }
 }

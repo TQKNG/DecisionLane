@@ -1,12 +1,12 @@
 import Link from "next/link";
 
 export function DecisionLaneBrand() {
-    return <Link href="/" className="dl-brand" aria-label="Decision Lane home">
+    return <Link href="/" className="dl-brand" aria-label="DecisionLane home">
         <svg viewBox="0 0 70 42" aria-hidden="true" fill="none">
             <path d="M2 25h18c8 0 11-8 17-14 3-3 6-4 11-4h18" strokeWidth="3.3" strokeLinecap="round" />
             <path d="M2 25h20c8 0 11 8 17 12 3 2 7 2 12 2h15" strokeWidth="4.6" strokeLinecap="round" />
         </svg>
-        <span>Decision Lane</span>
+        <span>DecisionLane</span>
     </Link>;
 }
 

@@ -1,4 +1,4 @@
-# PennyWorth agent instructions
+# DecisionLane agent instructions
 
 These instructions apply to Codex agents working in this repository.
 More specific instructions in nested AGENTS.md files take precedence for files below their directory.
@@ -6,7 +6,8 @@ User instructions take precedence over this file.
 
 ## Repository map
 
-PennyWorth is the RefundFlow refund-claim application.
+DecisionLane is a decision support application whose current backend implements refund claims.
+The existing Python package and Azure resource identifiers use `refundflow`.
 The backend is Python 3.11 with FastAPI, Azure Durable Functions, Cosmos DB, Blob Storage, Azure AI services, Microsoft Foundry, and Stripe.
 The frontend is Next.js with static-export compatibility, MSAL, Redux Toolkit, and RTK Query.
 

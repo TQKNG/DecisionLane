@@ -16,7 +16,7 @@ bearer_scheme = HTTPBearer(
     scheme_name="EntraBearer",
     bearerFormat="JWT",
     description=(
-        "Microsoft Entra access token for the RefundFlow API audience. "
+        "Microsoft Entra access token for the Decision Lane API audience. "
         "Authorization uses the token's roles claim."
     ),
     auto_error=False,

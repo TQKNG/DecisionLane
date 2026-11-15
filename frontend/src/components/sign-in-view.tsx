@@ -42,10 +42,10 @@ export function SignInView() {
                 <p>{session.authenticated ? "Your workspace is ready." : "Access your cases, evidence, and decisions."}</p>
                 {error && <Notice variant="destructive">{error}</Notice>}
                 {!ENTRA_CONFIGURED && !session.authenticated && <Notice variant="warning">Microsoft Entra ID is not configured for this workspace.</Notice>}
-                {session.authenticated ? <Button className="dl-auth-action" size="pill" asChild><Link href="/">Open workspace</Link></Button> : <Button className="dl-auth-action" size="pill" disabled={!ENTRA_CONFIGURED || pending} onClick={() => void signIn()}>{pending ? "Opening Microsoft sign-in..." : "Continue with Microsoft"}</Button>}
+                {session.authenticated ? <Button className="dl-auth-action" size="pill" asChild><Link href="/dashboard">Open workspace</Link></Button> : <Button className="dl-auth-action" size="pill" disabled={!ENTRA_CONFIGURED || pending} onClick={() => void signIn()}>{pending ? "Opening Microsoft sign-in..." : "Continue with Microsoft"}</Button>}
                 {!session.authenticated && <p className="dl-auth-help">Use your organization account to continue securely.</p>}
             </Card>
         </main>
-        <footer className="dl-auth-footer"><span>© 2026 Decision Lane</span><span>Secure workspace</span></footer>
+        <footer className="dl-auth-footer"><span>© 2026 DecisionLane</span><span>Secure workspace</span></footer>
     </div>;
 }

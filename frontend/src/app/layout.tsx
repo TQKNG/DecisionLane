@@ -4,8 +4,8 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Decision Lane",
-  description: "Decision Lane secure workspace",
+  title: "DecisionLane",
+  description: "Turn evidence, policy, and human judgment into a confident path forward.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

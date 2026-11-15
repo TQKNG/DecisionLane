@@ -1,6 +1,6 @@
-# RefundFlow frontend
+# DecisionLane frontend
 
-This is the frontend foundation for RefundFlow.
+This is the frontend foundation for DecisionLane.
 It currently provides Microsoft Entra ID sign-in, a minimal authenticated shell, Redux Toolkit/RTK Query state-management scaffolding, and shadcn/ui-style components for future features.
 
 The app is configured for a static export, uses client-side MSAL authentication, and supports light, dark, and system themes.

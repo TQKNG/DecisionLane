@@ -24,7 +24,7 @@ tags_metadata = [
     {"name": "webhooks", "description": "Signed callbacks from external services."},
 ]
 app = FastAPI(
-    title="RefundFlow API",
+    title="Decision Lane API",
     description=(
         "API for submitting refund claims, uploading evidence, and reviewing "
         "refund assessments. Protected operations use Microsoft Entra bearer tokens."

@@ -1,4 +1,4 @@
-# RefundFlow Business Rules
+# DecisionLane Refund Claim Business Rules
 
 ## Purpose and rule status
 
