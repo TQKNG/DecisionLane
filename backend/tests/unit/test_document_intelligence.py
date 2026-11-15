@@ -26,3 +26,12 @@ def test_dollar_symbol_does_not_infer_currency() -> None:
     )
 
     assert "currency" not in fields
+
+
+def test_normalizes_explicit_currency_field_and_preserves_unknown_fields() -> None:
+    fields = normalize_extracted_fields(
+        {" currency ": "usd", "merchant_name": "Synthetic Store"},
+        "",
+    )
+
+    assert fields == {"merchant_name": "Synthetic Store", "currency": "USD"}
