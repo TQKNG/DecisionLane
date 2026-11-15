@@ -25,3 +25,6 @@ local.settings.json
 infra/what-if.txt
 /graphify-out/
 samples/
+/AGENTS.md
+/.codex/
+/GUIDE.md
