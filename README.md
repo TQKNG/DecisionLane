@@ -99,9 +99,9 @@ Configure the `dev` environment with the Azure OIDC variables `AZURE_CLIENT_ID`,
 Store the Static Web Apps deployment token as `AZURE_STATIC_WEB_APPS_API_TOKEN` in GitHub Actions secrets.
 Keep Azure and Stripe runtime secrets in Key Vault rather than repository files.
 The public repository protects `master` with required pull requests, resolved review conversations, and the `frontend` and `infrastructure` CI checks.
-The `python` check must also become required after its existing backend lint failures are fixed and a green run is observed.
 Branch protection is managed in GitHub Settings, not by these workflow files.
 
 ## Project policies
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a change and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) when participating in the project.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a change. The [Code of Conduct](CODE_OF_CONDUCT.md) describes participation expectations and maintainer contact details.
+Licensing terms are in [LICENSE](LICENSE).
