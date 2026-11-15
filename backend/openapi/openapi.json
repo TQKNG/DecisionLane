@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "RefundFlow API",
+    "title": "DecisionLane API",
     "description": "API for submitting refund claims, uploading evidence, and reviewing refund assessments. Protected operations use Microsoft Entra bearer tokens.",
     "version": "0.1.0"
   },
@@ -1739,7 +1739,7 @@
     "securitySchemes": {
       "EntraBearer": {
         "type": "http",
-        "description": "Microsoft Entra access token for the RefundFlow API audience. Authorization uses the token's roles claim.",
+        "description": "Microsoft Entra access token for the DecisionLane API audience. Authorization uses the token's roles claim.",
         "scheme": "bearer",
         "bearerFormat": "JWT"
       }
