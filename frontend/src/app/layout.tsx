@@ -4,14 +4,14 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "RefundFlow AI",
-  description: "Evidence-grounded refund review",
+  title: "DecisionLane",
+  description: "Turn evidence, policy, and human judgment into a confident path forward.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

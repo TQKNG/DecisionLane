@@ -4,6 +4,7 @@ from typing import Self
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from azure.core.exceptions import ResourceNotFoundError
 
 from refundflow.services import email, embeddings, evidence_storage, payments
 from refundflow.services.email import StatusEmailService
@@ -109,7 +110,10 @@ async def test_evidence_storage_downloads_promotes_and_closes() -> None:
         download_blob=AsyncMock(return_value=downloader),
         delete_blob=AsyncMock(),
     )
-    evidence = SimpleNamespace(upload_blob=AsyncMock())
+    evidence = SimpleNamespace(
+        get_blob_properties=AsyncMock(side_effect=ResourceNotFoundError),
+        upload_blob=AsyncMock(),
+    )
     client = SimpleNamespace(
         get_blob_client=Mock(
             side_effect=lambda container, name: (

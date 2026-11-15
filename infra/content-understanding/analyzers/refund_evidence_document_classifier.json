@@ -1,6 +1,6 @@
 {
 	"analyzerId": "refund_evidence_document_classifier",
-	"description": "Classifies RefundFlow PDF evidence into receipts, invoices, order confirmations, tracking evidence, unreadable documents, and other content.",
+	"description": "Classifies DecisionLane refund claim PDF evidence into receipts, invoices, order confirmations, tracking evidence, unreadable documents, and other content.",
 	"createdAt": "2026-11-11T03:58:30Z",
 	"lastModifiedAt": "2026-11-11T03:58:30Z",
 	"baseAnalyzerId": "prebuilt-document",
@@ -59,7 +59,7 @@
 			"evidence_type": {
 				"type": "string",
 				"method": "classify",
-				"description": "Classify the document into exactly one category. Use unreadable when the content cannot be reliably interpreted. Use other when it is unrelated to supported RefundFlow evidence.",
+				"description": "Classify the document into exactly one category. Use unreadable when the content cannot be reliably interpreted. Use other when it is unrelated to supported DecisionLane refund claim evidence.",
 				"enum": [
 					"receipt",
 					"invoice",
