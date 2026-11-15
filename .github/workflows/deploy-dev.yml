@@ -23,6 +23,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     environment: dev
     steps:
@@ -54,7 +55,7 @@ jobs:
             --query "[?starts_with(name, 'refundflow-') && properties.provisioningState=='Succeeded'] | sort_by(@, &properties.timestamp) | [-1].name" \
             --output tsv)
           if [ -z "$DEPLOYMENT_NAME" ]; then
-            echo "::error::No successful RefundFlow infrastructure deployment found. Run Deploy development infrastructure first."
+            echo "::error::No successful DecisionLane infrastructure deployment found. Run Deploy development infrastructure first."
             exit 1
           fi
           az deployment group show \
