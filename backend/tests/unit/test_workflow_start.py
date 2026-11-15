@@ -12,7 +12,7 @@ import function_app
 
 
 class FakeDurableClient:
-    def __init__(self, existing_input: dict[str, object]) -> None:
+    def __init__(self, existing_input: object) -> None:
         self.status = SimpleNamespace(
             input_=existing_input,
             runtime_status=df.OrchestrationRuntimeStatus.Running,
@@ -101,6 +101,52 @@ async def test_existing_workflow_input_is_compared() -> None:
         "instance_id": "refund-workflow:claim-1",
     }
     assert client.show_input_requested is True
+
+
+@pytest.mark.asyncio
+async def test_restart_flag_does_not_change_existing_workflow_input() -> None:
+    body = {
+        "claim_id": "claim-1",
+        "document_ids": ["document-1"],
+        "restart_workflow": True,
+    }
+    request = func.HttpRequest(
+        method="POST",
+        url="http://localhost/api/refund-workflows",
+        body=json.dumps(body).encode(),
+    )
+    client = FakeDurableClient(
+        existing_input={
+            "claim_id": "claim-1",
+            "document_ids": ["document-1"],
+        }
+    )
+
+    start_activity = function_app.start_refund_workflow._function._func.__wrapped__
+    response = await start_activity(request, client)
+
+    assert response.status_code == 202
+    assert client.purged is False
+
+
+@pytest.mark.asyncio
+async def test_existing_workflow_json_input_is_compared() -> None:
+    body = {
+        "claim_id": "claim-1",
+        "document_ids": ["document-1"],
+    }
+    request = func.HttpRequest(
+        method="POST",
+        url="http://localhost/api/refund-workflows",
+        body=json.dumps(body).encode(),
+    )
+    client = FakeDurableClient(existing_input=json.dumps(body))
+
+    start_activity = function_app.start_refund_workflow._function._func.__wrapped__
+    response = await start_activity(request, client)
+
+    assert response.status_code == 202
+    assert client.purged is False
 
 
 @pytest.mark.asyncio

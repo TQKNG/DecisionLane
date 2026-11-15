@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-import os
+import asyncio
+import json
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 
 import azure.durable_functions as df
 import azure.functions as func
+from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import DefaultAzureCredential as SyncDefaultAzureCredential
 
 from functions.services import ActivityServices
+from refundflow.config import get_settings
 from refundflow.domain.evidence_validation import evaluate_evidence_bundle
 from refundflow.domain.models import (
-    AssessmentResult,
     ClaimAggregateItem,
     ClaimDocument,
     ClaimStatus,
@@ -26,12 +29,12 @@ from refundflow.observability import claim_span
 from refundflow.repositories.orders import CosmosOrderRepository
 from refundflow.services.email import StatusEmailService
 from refundflow.services.malware import MalwareStatus
-from refundflow.services.payments import StripeRefundService
+from refundflow.services.payments import StripeRefundService, resolve_refund_amount
 from refundflow.workflows.assessment import run_assessment_workflow
 
 local_auth_level = (
     func.AuthLevel.ANONYMOUS
-    if os.getenv("APP_ENV") == "local"
+    if get_settings().app_env == "local"
     else func.AuthLevel.FUNCTION
 )
 
@@ -48,6 +51,17 @@ def traced_activity(name: str, stage: str):
         return wrapped
 
     return decorate
+
+
+def normalize_workflow_input(value: object) -> dict[str, object]:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Stored workflow input must be a JSON object") from exc
+    if not isinstance(value, dict):
+        raise ValueError("Stored workflow input must be a JSON object")
+    return dict(value)
 
 
 @app.route(
@@ -80,12 +94,16 @@ async def start_refund_workflow(
             and existing.runtime_status == df.OrchestrationRuntimeStatus.Completed
         ):
             await client.purge_instance_history(instance_id)
-        elif existing.input_ != body:
-            return func.HttpResponse(
-                "A different workflow already exists for this claim",
-                status_code=409,
-            )
         else:
+            existing_input = normalize_workflow_input(existing.input_)
+            requested_input = normalize_workflow_input(body)
+            existing_input.pop("restart_workflow", None)
+            requested_input.pop("restart_workflow", None)
+            if existing_input != requested_input:
+                return func.HttpResponse(
+                    "A different workflow already exists for this claim",
+                    status_code=409,
+                )
             return client.create_check_status_response(req, instance_id)
 
     try:
@@ -258,6 +276,13 @@ def refund_orchestrator(context: df.DurableOrchestrationContext):
             return {"status": "closed", "reason": "approval_timeout"}
         timeout_task.cancel()
         decision = approval_task.result
+        if isinstance(decision, str):
+            try:
+                decision = json.loads(decision)
+            except json.JSONDecodeError as exc:
+                raise ValueError("Approval event must contain a JSON object") from exc
+        if not isinstance(decision, dict):
+            raise ValueError("Approval event must contain a JSON object")
         if decision["reviewer_id"] in reviewer_ids:
             continue
         yield context.call_activity("record_approval", decision)
@@ -266,10 +291,7 @@ def refund_orchestrator(context: df.DurableOrchestrationContext):
                 "set_claim_status",
                 {"claim_id": claim_id, "status": ClaimStatus.REJECTED.value},
             )
-            yield context.call_activity(
-                "send_status_email",
-                {"claim_id": claim_id, "status": "rejected"},
-            )
+            yield from notify_claim_status(context, claim_id, "rejected")
             return {"status": "rejected", "reason": "reviewer_rejected"}
         reviewer_ids.append(decision["reviewer_id"])
 
@@ -286,11 +308,37 @@ def refund_orchestrator(context: df.DurableOrchestrationContext):
         "set_claim_status",
         {"claim_id": claim_id, "status": ClaimStatus.REFUND_SUBMITTED.value},
     )
-    yield context.call_activity(
-        "send_status_email",
-        {"claim_id": claim_id, "status": "refund_submitted"},
-    )
+    yield from notify_claim_status(context, claim_id, "refund_submitted")
     return {"status": "refund_submitted", "refund": refund}
+
+
+def notify_claim_status(context, claim_id: str, status: str):
+    try:
+        result = yield context.call_activity_with_retry(
+            "send_status_email",
+            df.RetryOptions(
+                first_retry_interval_in_milliseconds=5000,
+                max_number_of_attempts=3,
+            ),
+            {"claim_id": claim_id, "status": status},
+        )
+        yield context.call_activity(
+            "record_notification",
+            {
+                "claim_id": claim_id,
+                "status": status,
+                "outcome": result["outcome"],
+            },
+        )
+    except Exception:
+        yield context.call_activity(
+            "record_notification",
+            {
+                "claim_id": claim_id,
+                "status": status,
+                "outcome": "failed",
+            },
+        )
 
 
 async def load_claim_and_document(
@@ -363,7 +411,12 @@ async def check_malware_status(activity_input) -> str:
             activity_input["claim_id"],
             activity_input["document_id"],
         )
-        return (await services.malware.get_status(document.blob_name)).value
+        try:
+            status = await services.malware.get_status(document.blob_name)
+        except ResourceNotFoundError:
+            await services.evidence_storage.download_evidence(document.blob_name)
+            status = MalwareStatus.CLEAN
+        return status.value
     finally:
         await services.close()
 
@@ -569,18 +622,46 @@ async def execute_refund(activity_input) -> dict[str, object]:
         claim = await services.repository.get_claim(str(activity_input["claim_id"]))
         if claim is None:
             raise ValueError("Claim not found")
-        assessment = AssessmentResult.model_validate(activity_input["assessment"])
         order = await order_repository.get_order(claim.customer_id, claim.order_id)
         if order is None:
             raise ValueError("Order not found")
-        if assessment.proposed_refund_amount > order.paid_amount:
-            raise ValueError("Proposed amount exceeds paid amount")
-        payment_service = StripeRefundService(os.environ["STRIPE_SECRET_KEY"])
-        result = payment_service.create_refund(
-            claim.id,
-            order.payment_intent_id,
-            assessment.proposed_refund_amount,
-            order.currency
+        extraction_items = await services.repository.list_items(claim.id, "extraction")
+        invoice_amounts: list[Decimal] = []
+        for item in extraction_items:
+            key_values = item.payload.get("key_values")
+            if not isinstance(key_values, dict):
+                continue
+            raw_amount = key_values.get("total_amount")
+            if raw_amount is None:
+                continue
+            try:
+                invoice_amounts.append(
+                    Decimal(str(raw_amount).replace("$", "").replace(",", "").strip())
+                )
+            except InvalidOperation:
+                continue
+        normalized_paid_amount = order.paid_amount.quantize(Decimal("0.01"))
+        invoice_amount = next(
+            (
+                amount
+                for amount in invoice_amounts
+                if amount.quantize(Decimal("0.01")) == normalized_paid_amount
+            ),
+            next((amount for amount in invoice_amounts if amount > 0), None),
+        )
+        refund_amount = resolve_refund_amount(order.paid_amount, invoice_amount)
+        if not services.settings.stripe_secret_key:
+            raise ValueError("Stripe secret key is not configured")
+        payment_service = StripeRefundService(services.settings.stripe_secret_key)
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                payment_service.create_refund,
+                claim.id,
+                order.payment_intent_id,
+                refund_amount,
+                order.currency,
+            ),
+            timeout=30,
         )
         await services.repository.upsert_item(
             ClaimAggregateItem(
@@ -598,21 +679,47 @@ async def execute_refund(activity_input) -> dict[str, object]:
 
 @app.activity_trigger(input_name="activity_input")
 @traced_activity("refundflow.send_status_email", "status_notification")
-async def send_status_email(activity_input) -> None:
+async def send_status_email(activity_input) -> dict[str, str]:
     services = ActivityServices()
     try:
         claim = await services.repository.get_claim(activity_input["claim_id"])
         if claim is None:
             raise ValueError("Claim not found")
+        if not (
+            services.settings.acs_email_endpoint
+            and services.settings.acs_sender_address
+        ):
+            return {"outcome": "skipped"}
         email_credential = SyncDefaultAzureCredential()
         email_service = StatusEmailService(
-            os.environ["ACS_EMAIL_ENDPOINT"],
-            os.environ["ACS_SENDER_ADDRESS"],
+            services.settings.acs_email_endpoint,
+            services.settings.acs_sender_address,
             email_credential
         )
         try:
             email_service.send(claim.customer_email, claim.id, activity_input["status"])
+            return {"outcome": "sent"}
         finally:
             email_credential.close()
+    finally:
+        await services.close()
+
+
+@app.activity_trigger(input_name="activity_input")
+@traced_activity("refundflow.record_notification", "notification_recording")
+async def record_notification(activity_input) -> None:
+    services = ActivityServices()
+    try:
+        await services.repository.upsert_item(
+            ClaimAggregateItem(
+                id=f"notification:{activity_input['status']}",
+                claim_id=activity_input["claim_id"],
+                item_type="notification",
+                payload={
+                    "status": activity_input["status"],
+                    "outcome": activity_input["outcome"],
+                },
+            )
+        )
     finally:
         await services.close()

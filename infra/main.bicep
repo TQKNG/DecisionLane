@@ -27,8 +27,11 @@ param foundryResourceGroup string = 'rg-foundry-models'
 @description('Existing Microsoft Foundry resource that hosts Content Understanding.')
 param foundryResourceName string = 'fd-resource-dev'
 
-@description('Content Understanding analyzer identifier.')
-param contentUnderstandingAnalyzerId string = 'refund_evidence_classifier'
+@description('Content Understanding document analyzer identifier.')
+param contentUnderstandingDocumentAnalyzerId string = 'refund_evidence_document_classifier'
+
+@description('Content Understanding image analyzer identifier.')
+param contentUnderstandingImageAnalyzerId string = 'refund_evidence_image_classifier'
 
 @description('Production Content Understanding API version.')
 param contentUnderstandingApiVersion string = '2025-11-01'
@@ -462,7 +465,8 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'CONTENT_SAFETY_ENDPOINT', value: contentSafety.properties.endpoint }
             { name: 'DOCUMENT_INTELLIGENCE_ENDPOINT', value: documentIntelligence.properties.endpoint }
             { name: 'CONTENT_UNDERSTANDING_ENDPOINT', value: foundry.properties.endpoint }
-            { name: 'CONTENT_UNDERSTANDING_ANALYZER_ID', value: contentUnderstandingAnalyzerId }
+            { name: 'CONTENT_UNDERSTANDING_DOCUMENT_ANALYZER_ID', value: contentUnderstandingDocumentAnalyzerId }
+            { name: 'CONTENT_UNDERSTANDING_IMAGE_ANALYZER_ID', value: contentUnderstandingImageAnalyzerId }
             { name: 'CONTENT_UNDERSTANDING_API_VERSION', value: contentUnderstandingApiVersion }
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
             { name: 'ENABLE_INSTRUMENTATION', value: 'true' }
@@ -562,7 +566,8 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'CONTENT_SAFETY_ENDPOINT', value: contentSafety.properties.endpoint }
         { name: 'DOCUMENT_INTELLIGENCE_ENDPOINT', value: documentIntelligence.properties.endpoint }
         { name: 'CONTENT_UNDERSTANDING_ENDPOINT', value: foundry.properties.endpoint }
-        { name: 'CONTENT_UNDERSTANDING_ANALYZER_ID', value: contentUnderstandingAnalyzerId }
+        { name: 'CONTENT_UNDERSTANDING_DOCUMENT_ANALYZER_ID', value: contentUnderstandingDocumentAnalyzerId }
+        { name: 'CONTENT_UNDERSTANDING_IMAGE_ANALYZER_ID', value: contentUnderstandingImageAnalyzerId }
         { name: 'CONTENT_UNDERSTANDING_API_VERSION', value: contentUnderstandingApiVersion }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'ENABLE_INSTRUMENTATION', value: 'true' }

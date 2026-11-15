@@ -25,6 +25,10 @@ EXPECTED_OPERATIONS = {
     ("post", "/v1/claims/{claim_id}/submit"): ("submit_claim", "uploads", "202", True, True),
     ("get", "/v1/reviews/{claim_id}"): ("get_review", "reviews", "200", True, True),
     (
+        "get",
+        "/v1/reviews/{claim_id}/documents/{document_id}",
+    ): ("download_review_document", "reviews", "200", True, True),
+    (
         "post",
         "/v1/reviews/{claim_id}/decision",
     ): ("decide_review", "reviews", "202", True, True),
@@ -49,6 +53,10 @@ EXPECTED_ROLES = {
     ): ("Customer",),
     ("post", "/v1/claims/{claim_id}/submit"): ("Customer",),
     ("get", "/v1/reviews/{claim_id}"): ("Reviewer", "Admin"),
+    (
+        "get",
+        "/v1/reviews/{claim_id}/documents/{document_id}",
+    ): ("Reviewer", "Admin"),
     ("post", "/v1/reviews/{claim_id}/decision"): ("Reviewer", "Admin"),
     ("get", "/v1/admin/kpis"): ("Admin",),
     ("post", "/v1/admin/orders"): ("Admin",),

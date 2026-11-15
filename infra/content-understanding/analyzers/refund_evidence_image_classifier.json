@@ -1,6 +1,6 @@
 {
 	"analyzerId": "refund_evidence_image_classifier",
-	"description": "Classifies RefundFlow image evidence into receipts, invoices, order confirmations, tracking evidence, damage photos, product photos, package labels, unreadable images, and other content. For damage photos, determines whether the product is shown and whether visible physical damage is present, with image quality, confidence, and reviewer-readable reasoning. Describes visible evidence only and does not infer causation, eligibility, or refund approval.",
+	"description": "Classifies DecisionLane refund claim image evidence into receipts, invoices, order confirmations, tracking evidence, damage photos, product photos, package labels, unreadable images, and other content. For damage photos, determines whether the product is shown and whether visible physical damage is present, with image quality, confidence, and reviewer-readable reasoning. Describes visible evidence only and does not infer causation, eligibility, or refund approval.",
 	"createdAt": "2026-11-11T04:02:26Z",
 	"lastModifiedAt": "2026-11-11T04:02:26Z",
 	"baseAnalyzerId": "prebuilt-image",
