@@ -2,7 +2,7 @@
 import { MsalProvider, useMsal } from "@azure/msal-react";
 import { createContext, useContext, useEffect, useState } from "react";
 import { Provider } from "react-redux";
-import { MSAL_INSTANCE } from "@/lib/auth";
+import { acquireApiToken, API_BASE_URL, API_CONFIGURED, MSAL_INSTANCE } from "@/lib/auth";
 import { makeStore } from "@/lib/store";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ export function useSession() { const session = useContext(SESSION); if (!session
     throw new Error("Session provider missing"); return session; }
 function StoreBoundary({ children }: {
     children: React.ReactNode;
-}) { const [store] = useState(makeStore); return <Provider store={store}>{children}</Provider>; }
+}) { const [store] = useState(() => makeStore({ baseUrl: API_CONFIGURED ? API_BASE_URL : "", getAccessToken: acquireApiToken })); return <Provider store={store}>{children}</Provider>; }
 function SessionProvider({ children }: {
     children: React.ReactNode;
 }) {

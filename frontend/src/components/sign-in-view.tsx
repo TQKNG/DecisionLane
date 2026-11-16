@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Notice } from "@/components/ui/notice";
 import { useSession } from "@/components/providers";
-import { ENTRA_CONFIGURED, LOGIN_REQUEST } from "@/lib/auth";
+import { API_CONFIGURED, ENTRA_CONFIGURED, loginRequestFor, SIGNED_IN_HOME } from "@/lib/auth";
 
 export function SignInView() {
     const { instance } = useMsal();
@@ -21,7 +21,7 @@ export function SignInView() {
         setError("");
         setPending(true);
         try {
-            await instance.loginRedirect(LOGIN_REQUEST);
+            await instance.loginRedirect(loginRequestFor(window.location.pathname));
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Sign-in could not be started. Please try again.");
             setPending(false);
@@ -39,10 +39,11 @@ export function SignInView() {
             </section>
             <Card className="dl-auth-card">
                 <h2>{session.authenticated ? "You are signed in" : "Sign in"}</h2>
-                <p>{session.authenticated ? "Your workspace is ready." : "Access your cases, evidence, and decisions."}</p>
+                <p>{session.authenticated ? "Your claims are ready." : "Track your refund claims and their progress."}</p>
                 {error && <Notice variant="destructive">{error}</Notice>}
                 {!ENTRA_CONFIGURED && !session.authenticated && <Notice variant="warning">Microsoft Entra ID is not configured for this workspace.</Notice>}
-                {session.authenticated ? <Button className="dl-auth-action" size="pill" asChild><Link href="/dashboard">Open workspace</Link></Button> : <Button className="dl-auth-action" size="pill" disabled={!ENTRA_CONFIGURED || pending} onClick={() => void signIn()}>{pending ? "Opening Microsoft sign-in..." : "Continue with Microsoft"}</Button>}
+                {ENTRA_CONFIGURED && !API_CONFIGURED && <Notice variant="warning">The DecisionLane API is not configured, so claims cannot be loaded yet.</Notice>}
+                {session.authenticated ? <Button className="dl-auth-action" size="pill" asChild><Link href={SIGNED_IN_HOME}>View your claims</Link></Button> : <Button className="dl-auth-action" size="pill" disabled={!ENTRA_CONFIGURED || pending} onClick={() => void signIn()}>{pending ? "Opening Microsoft sign-in..." : "Continue with Microsoft"}</Button>}
                 {!session.authenticated && <p className="dl-auth-help">Use your organization account to continue securely.</p>}
             </Card>
         </main>

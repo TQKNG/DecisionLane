@@ -16,7 +16,10 @@ NEXT_PUBLIC_API_SCOPE=
 NEXT_PUBLIC_API_BASE_URL=
 ```
 
-`NEXT_PUBLIC_API_SCOPE` and `NEXT_PUBLIC_API_BASE_URL` are retained for the future API layer.
+`NEXT_PUBLIC_API_BASE_URL` is the DecisionLane API origin, for example `http://localhost:8000` locally or the deployed API host.
+`NEXT_PUBLIC_API_SCOPE` is the delegated API scope, for example `api://<api-client-id>/access_as_user`.
+When either value is missing, signed-in screens explain that the API is not configured instead of showing placeholder data.
+The API must list the frontend origin in its `ALLOWED_ORIGINS` setting.
 
 ## Development
 
@@ -32,6 +35,7 @@ The development server runs at `http://localhost:3000`.
 ```bash
 pnpm lint
 pnpm typecheck
+pnpm test
 pnpm build
 ```
 

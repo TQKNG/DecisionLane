@@ -1,16 +1,18 @@
 import { configureStore } from "@reduxjs/toolkit";
-import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { apiBaseQuery, type ApiServices } from "@/lib/api/base-query";
 
 export const appApi = createApi({
     reducerPath: "appApi",
-    baseQuery: fakeBaseQuery<{ message: string }>(),
+    baseQuery: apiBaseQuery,
+    tagTypes: ["Claim"],
     endpoints: () => ({}),
 });
 
-export function makeStore() {
+export function makeStore(services: ApiServices) {
     return configureStore({
         reducer: { [appApi.reducerPath]: appApi.reducer },
-        middleware: (getDefault) => getDefault().concat(appApi.middleware),
+        middleware: (getDefault) => getDefault({ thunk: { extraArgument: services } }).concat(appApi.middleware),
     });
 }
 

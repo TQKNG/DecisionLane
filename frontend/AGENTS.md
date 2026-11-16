@@ -116,11 +116,13 @@ Run from `frontend/`:
 ```bash
 pnpm lint
 pnpm typecheck
+pnpm test
 pnpm build
 ```
 
-Run `pnpm test` when frontend tests exist.
-At the current baseline, the test script reports that no frontend tests are configured.
+`pnpm test` runs Vitest in Node against `tests/**/*.test.ts`.
+Data-boundary tests build a store with `makeStore` and inject a scripted `fetchFn` and token provider, so they need no Azure or network access.
+Add data-boundary tests for every new RTK Query endpoint.
 Do not report tests as passing when the command was not actually executed successfully.
 
 When a browser test suite is introduced, add its command to `package.json`, this file, and CI in the same change.
