@@ -21,6 +21,12 @@ NEXT_PUBLIC_API_BASE_URL=
 When either value is missing, signed-in screens explain that the API is not configured instead of showing placeholder data.
 The API must list the frontend origin in its `ALLOWED_ORIGINS` setting.
 
+## Claim detail URLs
+
+Claim pages use `/claims/<id>/`.
+Static export cannot pre-render every claim, so `public/staticwebapp.config.json` rewrites those paths to the `/claims/detail/` shell, and `next.config.ts` mirrors the rule in `next dev`.
+Link to claim pages with plain anchors from `claimDetailHref()`, not `next/link`, because those paths have no client-side route payload.
+
 ## Evidence uploads
 
 The browser uploads evidence files directly to the quarantine Blob container.
@@ -53,6 +59,8 @@ pnpm dev
 The development server runs at `http://localhost:3000`.
 
 ## Verification
+
+For the full local and deployed smoke checklist, see [docs/customer-journey-verification.md](docs/customer-journey-verification.md).
 
 ```bash
 pnpm lint

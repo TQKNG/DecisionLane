@@ -9,6 +9,10 @@ export const claimsApi = appApi.injectEndpoints({
             query: (args) => ({ url: "/v1/claims", params: args?.status ? { status: args.status } : undefined }),
             providesTags: (result) => [...(result ?? []).map((claim) => ({ type: "Claim" as const, id: claim.id })), { type: "Claim" as const, id: "LIST" }],
         }),
+        getClaim: build.query<RefundClaim, string>({
+            query: (claimId) => claimPath(claimId),
+            providesTags: (_result, _error, claimId) => [{ type: "Claim", id: claimId }],
+        }),
         createClaim: build.mutation<RefundClaim, CreateClaimRequest>({
             query: (body) => ({ url: "/v1/claims", method: "POST", body }),
             invalidatesTags: [{ type: "Claim", id: "LIST" }],
@@ -26,4 +30,4 @@ export const claimsApi = appApi.injectEndpoints({
     }),
 });
 
-export const { useListClaimsQuery } = claimsApi;
+export const { useGetClaimQuery, useListClaimsQuery } = claimsApi;

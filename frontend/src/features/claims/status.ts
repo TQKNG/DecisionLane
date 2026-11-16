@@ -62,3 +62,40 @@ export function sortClaimsByUpdated(claims: readonly RefundClaim[]): RefundClaim
     const time = (claim: RefundClaim) => Date.parse(claim.updated_at || claim.created_at) || 0;
     return [...claims].sort((a, b) => time(b) - time(a));
 }
+
+/** How often an open claim refreshes while the backend is still working on it. */
+export const CLAIM_POLL_INTERVAL_MS = 3_000;
+
+export function shouldPollClaim(status: string | undefined): boolean {
+    return status ? presentClaimStatus(status).active : false;
+}
+
+export const CLAIM_PROGRESS_STEPS = ["Submitted", "Checking evidence", "Assessment", "Review", "Refund"] as const;
+
+export type ClaimStepTone = "active" | "attention" | "complete" | "stopped";
+
+export interface ClaimStatusStep {
+    /** Index into CLAIM_PROGRESS_STEPS of the step the claim is on. */
+    current: number;
+    tone: ClaimStepTone;
+}
+
+const CLAIM_STATUS_STEPS: Record<ClaimStatus, ClaimStatusStep> = {
+    draft: { current: 0, tone: "attention" },
+    uploading: { current: 0, tone: "attention" },
+    scanning: { current: 1, tone: "active" },
+    needs_information: { current: 1, tone: "attention" },
+    processing: { current: 2, tone: "active" },
+    pending_ai_capacity: { current: 2, tone: "active" },
+    pending_approval: { current: 3, tone: "active" },
+    rejected: { current: 3, tone: "stopped" },
+    approved: { current: 4, tone: "active" },
+    refund_submitted: { current: 4, tone: "active" },
+    refund_failed: { current: 4, tone: "attention" },
+    refunded: { current: 4, tone: "complete" },
+    closed: { current: 4, tone: "stopped" },
+};
+
+export function claimStatusStep(status: string): ClaimStatusStep {
+    return isClaimStatus(status) ? CLAIM_STATUS_STEPS[status] : { current: 0, tone: "active" };
+}

@@ -1,0 +1,7 @@
+{
+  "routes": [
+    { "route": "/claims/new/*", "allowedRoles": ["anonymous"] },
+    { "route": "/claims/detail/*", "allowedRoles": ["anonymous"] },
+    { "route": "/claims/*", "rewrite": "/claims/detail/index.html" }
+  ]
+}

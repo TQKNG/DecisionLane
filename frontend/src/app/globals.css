@@ -302,3 +302,5 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-
   .dl-table-wrap:has(> .dl-claims-table) { display: none; }
   .dl-claims-cards { display: block; }
 }
+.dl-claims-link { text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px; }
+.dl-claims-link:hover { color: var(--brand-foreground); text-decoration-color: currentColor; }

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "1336749878326734153"
+      "templateHash": "7093156115833658255"
     }
   },
   "parameters": {
@@ -95,7 +95,7 @@
       "type": "string",
       "defaultValue": "http://localhost:3000",
       "metadata": {
-        "description": "Local frontend origin allowed to upload evidence directly to Blob Storage in the dev environment."
+        "description": "Local frontend origin allowed to call the API and upload evidence to Blob Storage in the dev environment."
       }
     }
   },
@@ -626,6 +626,10 @@
                   "value": "[parameters('environmentName')]"
                 },
                 {
+                  "name": "ALLOWED_ORIGINS",
+                  "value": "[join(concat(if(equals(parameters('environmentName'), 'dev'), createArray(parameters('localFrontendOrigin')), createArray()), createArray(format('https://{0}', reference(resourceId('Microsoft.Web/staticSites', format('{0}-web', variables('prefix'))), '2023-12-01').defaultHostname))), ',')]"
+                },
+                {
                   "name": "COSMOS_ENDPOINT",
                   "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), '2024-11-15').documentEndpoint]"
                 },
@@ -726,6 +730,7 @@
         "[resourceId('Microsoft.CognitiveServices/accounts', format('{0}-safety-{1}', variables('prefix'), variables('token')))]",
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', format('{0}-docs-{1}', variables('prefix'), variables('token')))]",
+        "[resourceId('Microsoft.Web/staticSites', format('{0}-web', variables('prefix')))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
       ]
     },

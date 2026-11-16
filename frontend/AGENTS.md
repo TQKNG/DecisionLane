@@ -18,6 +18,7 @@ Do not recreate the removed claim, reviewer, operations, or demo workflows unles
 - Redux Toolkit and RTK Query reserved for application and server state.
 - pnpm is the package manager.
 - shadcn/ui-style components with Tailwind CSS v4, PostCSS, and CSS design tokens.
+- Claim detail URLs (`/claims/<id>/`) are served by a host rewrite to `/claims/detail/` (`public/staticwebapp.config.json`, mirrored in `next.config.ts` for development).
 
 Keep the existing stack unless the task requires a deliberate architectural change.
 Do not add a UI library, state library, form library, or API client without explaining the need and updating the project documentation.

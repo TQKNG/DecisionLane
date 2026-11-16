@@ -36,7 +36,7 @@ param contentUnderstandingImageAnalyzerId string = 'refund_evidence_image_classi
 @description('Production Content Understanding API version.')
 param contentUnderstandingApiVersion string = '2025-11-01'
 
-@description('Local frontend origin allowed to upload evidence directly to Blob Storage in the dev environment.')
+@description('Local frontend origin allowed to call the API and upload evidence to Blob Storage in the dev environment.')
 param localFrontendOrigin string = 'http://localhost:3000'
 
 var token = toLower(uniqueString(subscription().id, resourceGroup().id))
@@ -46,6 +46,8 @@ var cosmosName = take('${prefix}-cosmos-${token}', 44)
 var keyVaultName = take('${prefix}-kv-${token}', 24)
 var acrName = take(replace('${prefix}acr${token}', '-', ''), 50)
 var appName = '${prefix}-api'
+// Browser origins for the customer frontend. Static Web App staging and preview hostnames are intentionally excluded.
+var frontendOrigins = concat(environmentName == 'dev' ? [localFrontendOrigin] : [], ['https://${frontend.properties.defaultHostname}'])
 var functionName = take('${prefix}-workflow-${token}', 60)
 var deploymentContainerName = 'function-releases'
 
@@ -189,7 +191,7 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
     cors: {
       corsRules: [
         {
-          allowedOrigins: concat(environmentName == 'dev' ? [localFrontendOrigin] : [], ['https://${frontend.properties.defaultHostname}'])
+          allowedOrigins: frontendOrigins
           allowedMethods: ['PUT', 'OPTIONS']
           allowedHeaders: ['content-type', 'x-ms-blob-type', 'x-ms-version', 'x-ms-client-request-id']
           exposedHeaders: ['x-ms-request-id', 'etag']
@@ -473,6 +475,7 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
           }
           env: [
             { name: 'APP_ENV', value: environmentName }
+            { name: 'ALLOWED_ORIGINS', value: join(frontendOrigins, ',') }
             { name: 'COSMOS_ENDPOINT', value: cosmos.properties.documentEndpoint }
             { name: 'COSMOS_DATABASE', value: 'refundflow' }
             { name: 'STORAGE_ACCOUNT_NAME', value: storage.name }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ClaimStatusBadge } from "@/features/claims/claim-status-badge";
+import { CLAIMS_HOME, claimDetailHref } from "@/features/claims/routes";
 import { presentClaimStatus } from "@/features/claims/status";
 import styles from "./new-claim.module.css";
 
@@ -12,10 +13,11 @@ export function SubmissionResult({ claimId, status, onStartAnother }: { claimId:
         <h2 id="claim-submitted-title" tabIndex={-1}>Claim submitted</h2>
         <p>Your claim <strong>{claimId}</strong> has been received.</p>
         <ClaimStatusBadge status={status} />
-        <p className={styles.resultNext}>{presentation.description} You can follow its progress from your claims.</p>
+        <p className={styles.resultNext}>{presentation.description} You can follow its progress on the claim page.</p>
         <div className={styles.resultActions}>
-            <Button asChild size="pill"><Link href="/dashboard/">Back to your claims</Link></Button>
-            <Button type="button" variant="outline" size="pill" onClick={onStartAnother}>Start another claim</Button>
+            <Button asChild size="pill"><a href={claimDetailHref(claimId)}>View claim status</a></Button>
+            <Button asChild variant="outline" size="pill"><Link href={CLAIMS_HOME}>Back to your claims</Link></Button>
+            <Button type="button" variant="ghost" size="pill" onClick={onStartAnother}>Start another claim</Button>
         </div>
     </Card>;
 }
