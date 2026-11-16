@@ -21,6 +21,28 @@ NEXT_PUBLIC_API_BASE_URL=
 When either value is missing, signed-in screens explain that the API is not configured instead of showing placeholder data.
 The API must list the frontend origin in its `ALLOWED_ORIGINS` setting.
 
+## Evidence uploads
+
+The browser uploads evidence files directly to the quarantine Blob container.
+For each file it uses the short-lived grant from `POST /v1/claims/{claim_id}/uploads`, then asks the API to verify the upload before the claim is submitted.
+The upload request goes to Blob Storage, so the storage account needs a CORS rule for the frontend origin.
+
+- Deployed environments: `infra/main.bicep` allows `PUT` from the Static Web App hostname, and in `dev` also from `localFrontendOrigin` (default `http://localhost:3000`).
+  Static Web App staging and preview hostnames are not included.
+- Local development against Azurite: Azurite does not read Bicep, so add a matching rule once, for example:
+
+  ```bash
+  az storage cors add --services b --methods PUT OPTIONS \
+    --origins http://localhost:3000 \
+    --allowed-headers content-type x-ms-blob-type x-ms-version x-ms-client-request-id \
+    --exposed-headers x-ms-request-id etag --max-age 3600 \
+    --connection-string "UseDevelopmentStorage=true"
+  ```
+
+Known limitation: the API has no way to remove or replace an uploaded document, and a claim can be submitted only when every document is verified.
+If a file is rejected during verification, or its upload grant expires before a retry, that claim stays in draft.
+The customer can start a new claim instead.
+
 ## Development
 
 ```bash

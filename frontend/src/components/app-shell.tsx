@@ -36,7 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <a className="skip-link" href="#main-content">Skip to content</a>
         <aside className="dl-sidebar">
             <DecisionLaneBrand />
-            <Navigation><NavigationLink href="/dashboard/" current={pathname.startsWith("/dashboard")}>Claims</NavigationLink></Navigation>
+            <Navigation><NavigationLink href="/dashboard/" current={pathname.startsWith("/dashboard") || pathname.startsWith("/claims")}>Claims</NavigationLink></Navigation>
             <div className="dl-sidebar-bottom"><div className="dl-user"><span className="dl-avatar" aria-hidden="true">{initials}</span><span>{session.name}</span></div></div>
         </aside>
         <div className="dl-workspace">

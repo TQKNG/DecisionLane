@@ -36,6 +36,9 @@ param contentUnderstandingImageAnalyzerId string = 'refund_evidence_image_classi
 @description('Production Content Understanding API version.')
 param contentUnderstandingApiVersion string = '2025-11-01'
 
+@description('Local frontend origin allowed to upload evidence directly to Blob Storage in the dev environment.')
+param localFrontendOrigin string = 'http://localhost:3000'
+
 var token = toLower(uniqueString(subscription().id, resourceGroup().id))
 var prefix = 'refundflow-${environmentName}'
 var storageName = take(replace('st${prefix}${token}', '-', ''), 24)
@@ -181,6 +184,18 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
     containerDeleteRetentionPolicy: {
       enabled: true
       days: 7
+    }
+    // Browsers upload evidence directly to quarantine with a short-lived grant from the API.
+    cors: {
+      corsRules: [
+        {
+          allowedOrigins: concat(environmentName == 'dev' ? [localFrontendOrigin] : [], ['https://${frontend.properties.defaultHostname}'])
+          allowedMethods: ['PUT', 'OPTIONS']
+          allowedHeaders: ['content-type', 'x-ms-blob-type', 'x-ms-version', 'x-ms-client-request-id']
+          exposedHeaders: ['x-ms-request-id', 'etag']
+          maxAgeInSeconds: 3600
+        }
+      ]
     }
   }
 }

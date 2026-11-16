@@ -40,3 +40,35 @@ export interface RefundClaim {
 export interface ListClaimsArgs {
     status?: ClaimStatus;
 }
+
+export interface CreateClaimRequest {
+    order_id: string;
+    claim_type: ClaimType;
+    reason: string;
+    requested_amount: string;
+    currency: string;
+}
+
+export interface UploadRequest {
+    file_name: string;
+    content_type: string;
+    size_bytes: number;
+}
+
+/** Short-lived grant for one direct Blob upload. `upload_url` is signed: keep it in memory only and never log it. */
+export interface UploadGrant {
+    document_id: string;
+    blob_name: string;
+    upload_url: string;
+    required_headers: Record<string, string>;
+}
+
+export interface UploadCompleteResponse {
+    status: "verified";
+    document_id: string;
+}
+
+export interface ClaimSubmissionResponse {
+    status: "scanning";
+    workflow_instance_id: string;
+}

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "2147787999231646329"
+      "templateHash": "1336749878326734153"
     }
   },
   "parameters": {
@@ -89,6 +89,13 @@
       "defaultValue": "2025-11-01",
       "metadata": {
         "description": "Production Content Understanding API version."
+      }
+    },
+    "localFrontendOrigin": {
+      "type": "string",
+      "defaultValue": "http://localhost:3000",
+      "metadata": {
+        "description": "Local frontend origin allowed to upload evidence directly to Blob Storage in the dev environment."
       }
     }
   },
@@ -288,9 +295,32 @@
         "containerDeleteRetentionPolicy": {
           "enabled": true,
           "days": 7
+        },
+        "cors": {
+          "corsRules": [
+            {
+              "allowedOrigins": "[concat(if(equals(parameters('environmentName'), 'dev'), createArray(parameters('localFrontendOrigin')), createArray()), createArray(format('https://{0}', reference(resourceId('Microsoft.Web/staticSites', format('{0}-web', variables('prefix'))), '2023-12-01').defaultHostname)))]",
+              "allowedMethods": [
+                "PUT",
+                "OPTIONS"
+              ],
+              "allowedHeaders": [
+                "content-type",
+                "x-ms-blob-type",
+                "x-ms-version",
+                "x-ms-client-request-id"
+              ],
+              "exposedHeaders": [
+                "x-ms-request-id",
+                "etag"
+              ],
+              "maxAgeInSeconds": 3600
+            }
+          ]
         }
       },
       "dependsOn": [
+        "[resourceId('Microsoft.Web/staticSites', format('{0}-web', variables('prefix')))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
       ]
     },
