@@ -2,6 +2,11 @@
   "routes": [
     { "route": "/claims/new/*", "allowedRoles": ["anonymous"] },
     { "route": "/claims/detail/*", "allowedRoles": ["anonymous"] },
-    { "route": "/claims/*", "rewrite": "/claims/detail/index.html" }
+    { "route": "/claims/*", "rewrite": "/claims/detail/index.html" },
+    { "route": "/review/detail/*", "allowedRoles": ["anonymous"] },
+    { "route": "/review/", "allowedRoles": ["anonymous"] },
+    { "route": "/review/index.html", "allowedRoles": ["anonymous"] },
+    { "route": "/review/*.txt", "allowedRoles": ["anonymous"] },
+    { "route": "/review/*", "rewrite": "/review/detail/index.html" }
   ]
 }

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Navigation, NavigationLink } from "@/components/ui/navigation";
 import { Notice } from "@/components/ui/notice";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { navigationFor } from "@/lib/navigation";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const session = useSession();
@@ -36,7 +37,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <a className="skip-link" href="#main-content">Skip to content</a>
         <aside className="dl-sidebar">
             <DecisionLaneBrand />
-            <Navigation><NavigationLink href="/dashboard/" current={pathname.startsWith("/dashboard") || pathname.startsWith("/claims")}>Claims</NavigationLink></Navigation>
+            <Navigation>{navigationFor(session.roles, session.rolesStatus).map((item) => <NavigationLink key={item.href} href={item.href} current={item.matches(pathname)}>{item.label}</NavigationLink>)}</Navigation>
             <div className="dl-sidebar-bottom"><div className="dl-user"><span className="dl-avatar" aria-hidden="true">{initials}</span><span>{session.name}</span></div></div>
         </aside>
         <div className="dl-workspace">

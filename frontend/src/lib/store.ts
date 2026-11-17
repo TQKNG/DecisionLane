@@ -5,7 +5,7 @@ import { apiBaseQuery, type ApiServices } from "@/lib/api/base-query";
 export const appApi = createApi({
     reducerPath: "appApi",
     baseQuery: apiBaseQuery,
-    tagTypes: ["Claim"],
+    tagTypes: ["Claim", "Review", "AdminKpis"],
     endpoints: () => ({}),
 });
 
