@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8000
 
 WORKDIR /app
-RUN addgroup --system app & adduser --system --ingroup app app
+RUN addgroup --system app && adduser --system --ingroup app app
 
 COPY pyproject.toml ./
 COPY src ./src
