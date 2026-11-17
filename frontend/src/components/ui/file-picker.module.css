@@ -1,0 +1,43 @@
+.root { display: grid; gap: var(--space-2); }
+
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.zone {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-6) var(--space-4);
+  border: 1.5px dashed var(--input);
+  border-radius: var(--radius-control);
+  background: var(--muted);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background-color .15s;
+}
+
+.zone:hover, .dragging { border-color: var(--brand); background: var(--accent); }
+.invalid { border-color: var(--destructive); }
+.zone[data-disabled] { cursor: not-allowed; opacity: .55; }
+.input:focus-visible + .zone { outline: 3px solid var(--ring); outline-offset: 3px; }
+
+.icon { width: 30px; height: 30px; color: var(--brand-foreground); }
+.title { font-weight: 650; }
+.description { color: var(--muted-foreground); font-size: var(--text-supporting); }
+
+.browse {
+  margin-top: var(--space-2);
+  padding: 6px 14px;
+  border: 1.5px solid var(--primary);
+  border-radius: 999px;
+  font-size: var(--text-supporting);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) { .zone { transition: none; } }

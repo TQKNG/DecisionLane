@@ -100,8 +100,11 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
 body { background: radial-gradient(circle at 44% 22%, var(--card), var(--background) 64%); color: var(--foreground); font-family: var(--font-body); font-size: var(--text-body); line-height: 1.45; }
-a { color: inherit; text-decoration: none; }
-button { cursor: pointer; font: inherit; }
+/* Element defaults sit in the base layer so component utilities such as Button variants can override them. */
+@layer base {
+  a { color: inherit; text-decoration: none; }
+  button { cursor: pointer; font: inherit; }
+}
 button:disabled { cursor: not-allowed; opacity: .55; }
 button:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
 .skip-link { left: 12px; position: fixed; top: -80px; z-index: 10; }
@@ -269,3 +272,35 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-
   .dl-demo-action .button { width: 100%; }
   .dl-landing-footer { flex-wrap: wrap; }
 }
+/* Customer claims. */
+.dl-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-3); }
+.dl-state-actions .dl-notice { flex-basis: 100%; }
+.dl-status-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: currentColor; }
+.dl-claims-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); margin: 0 0 var(--space-5); padding: 0; list-style: none; }
+.dl-metric { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4); }
+.dl-metric svg { width: 44px; height: 44px; flex: none; padding: 10px; border-radius: 12px; background: var(--accent); color: var(--brand-foreground); }
+.dl-metric span { display: block; color: var(--muted-foreground); font-size: 14px; }
+.dl-metric strong { display: block; font-size: 26px; line-height: 1.15; letter-spacing: -.03em; }
+.dl-claims-stale { margin-bottom: var(--space-4); }
+.dl-claims-table th[scope="row"] { background: transparent; font-size: inherit; }
+.dl-claims-id { font-weight: 650; white-space: nowrap; }
+.dl-claims-muted { color: var(--muted-foreground); white-space: nowrap; }
+.dl-claims-cards { display: none; margin: 0; padding: 0; list-style: none; }
+.dl-claims-card { padding: var(--space-4); }
+.dl-claims-card + .dl-claims-card { margin-top: var(--space-3); }
+.dl-claims-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.dl-claims-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-3) 0 0; }
+.dl-claims-card dt { color: var(--muted-foreground); font-size: var(--text-supporting); }
+.dl-claims-card dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 900px) { .dl-claims-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .dl-claims-summary { gap: var(--space-2); }
+  .dl-metric { padding: var(--space-3); }
+  .dl-metric svg { width: 36px; height: 36px; padding: 8px; }
+  .dl-metric strong { font-size: 21px; }
+  .dl-claims-table { display: none; }
+  .dl-table-wrap:has(> .dl-claims-table) { display: none; }
+  .dl-claims-cards { display: block; }
+}
+.dl-claims-link { text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px; }
+.dl-claims-link:hover { color: var(--brand-foreground); text-decoration-color: currentColor; }

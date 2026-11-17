@@ -16,7 +16,38 @@ NEXT_PUBLIC_API_SCOPE=
 NEXT_PUBLIC_API_BASE_URL=
 ```
 
-`NEXT_PUBLIC_API_SCOPE` and `NEXT_PUBLIC_API_BASE_URL` are retained for the future API layer.
+`NEXT_PUBLIC_API_BASE_URL` is the DecisionLane API origin, for example `http://localhost:8000` locally or the deployed API host.
+`NEXT_PUBLIC_API_SCOPE` is the delegated API scope, for example `api://<api-client-id>/access_as_user`.
+When either value is missing, signed-in screens explain that the API is not configured instead of showing placeholder data.
+The API must list the frontend origin in its `ALLOWED_ORIGINS` setting.
+
+## Claim detail URLs
+
+Claim pages use `/claims/<id>/`.
+Static export cannot pre-render every claim, so `public/staticwebapp.config.json` rewrites those paths to the `/claims/detail/` shell, and `next.config.ts` mirrors the rule in `next dev`.
+Link to claim pages with plain anchors from `claimDetailHref()`, not `next/link`, because those paths have no client-side route payload.
+
+## Evidence uploads
+
+The browser uploads evidence files directly to the quarantine Blob container.
+For each file it uses the short-lived grant from `POST /v1/claims/{claim_id}/uploads`, then asks the API to verify the upload before the claim is submitted.
+The upload request goes to Blob Storage, so the storage account needs a CORS rule for the frontend origin.
+
+- Deployed environments: `infra/main.bicep` allows `PUT` from the Static Web App hostname, and in `dev` also from `localFrontendOrigin` (default `http://localhost:3000`).
+  Static Web App staging and preview hostnames are not included.
+- Local development against Azurite: Azurite does not read Bicep, so add a matching rule once, for example:
+
+  ```bash
+  az storage cors add --services b --methods PUT OPTIONS \
+    --origins http://localhost:3000 \
+    --allowed-headers content-type x-ms-blob-type x-ms-version x-ms-client-request-id \
+    --exposed-headers x-ms-request-id etag --max-age 3600 \
+    --connection-string "UseDevelopmentStorage=true"
+  ```
+
+Known limitation: the API has no way to remove or replace an uploaded document, and a claim can be submitted only when every document is verified.
+If a file is rejected during verification, or its upload grant expires before a retry, that claim stays in draft.
+The customer can start a new claim instead.
 
 ## Development
 
@@ -29,9 +60,12 @@ The development server runs at `http://localhost:3000`.
 
 ## Verification
 
+For the full local and deployed smoke checklist, see [docs/customer-journey-verification.md](docs/customer-journey-verification.md).
+
 ```bash
 pnpm lint
 pnpm typecheck
+pnpm test
 pnpm build
 ```
 

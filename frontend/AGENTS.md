@@ -18,6 +18,7 @@ Do not recreate the removed claim, reviewer, operations, or demo workflows unles
 - Redux Toolkit and RTK Query reserved for application and server state.
 - pnpm is the package manager.
 - shadcn/ui-style components with Tailwind CSS v4, PostCSS, and CSS design tokens.
+- Claim detail URLs (`/claims/<id>/`) are served by a host rewrite to `/claims/detail/` (`public/staticwebapp.config.json`, mirrored in `next.config.ts` for development).
 
 Keep the existing stack unless the task requires a deliberate architectural change.
 Do not add a UI library, state library, form library, or API client without explaining the need and updating the project documentation.
@@ -116,11 +117,13 @@ Run from `frontend/`:
 ```bash
 pnpm lint
 pnpm typecheck
+pnpm test
 pnpm build
 ```
 
-Run `pnpm test` when frontend tests exist.
-At the current baseline, the test script reports that no frontend tests are configured.
+`pnpm test` runs Vitest in Node against `tests/**/*.test.ts`.
+Data-boundary tests build a store with `makeStore` and inject a scripted `fetchFn` and token provider, so they need no Azure or network access.
+Add data-boundary tests for every new RTK Query endpoint.
 Do not report tests as passing when the command was not actually executed successfully.
 
 When a browser test suite is introduced, add its command to `package.json`, this file, and CI in the same change.
