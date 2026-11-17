@@ -39,6 +39,12 @@ param contentUnderstandingApiVersion string = '2025-11-01'
 @description('Local frontend origin allowed to call the API and upload evidence to Blob Storage in the dev environment.')
 param localFrontendOrigin string = 'http://localhost:3000'
 
+@description('Local API origin allowed to call the Function App in the dev environment.')
+param localApiOrigin string = 'http://localhost:8000'
+
+@description('Local Function App origin allowed for same-origin tooling in the dev environment.')
+param localFunctionOrigin string = 'http://localhost:7071'
+
 var token = toLower(uniqueString(subscription().id, resourceGroup().id))
 var prefix = 'refundflow-${environmentName}'
 var storageName = take(replace('st${prefix}${token}', '-', ''), 24)
@@ -49,6 +55,13 @@ var appName = '${prefix}-api'
 // Browser origins for the customer frontend. Static Web App staging and preview hostnames are intentionally excluded.
 var frontendOrigins = concat(environmentName == 'dev' ? [localFrontendOrigin] : [], ['https://${frontend.properties.defaultHostname}'])
 var functionName = take('${prefix}-workflow-${token}', 60)
+// Origins allowed to call the Function App. Scoped to the frontend plus the Container App itself,
+// never a wildcard, so only known browser and service origins can invoke Durable Function triggers.
+var functionAppOrigins = concat(
+  frontendOrigins,
+  environmentName == 'dev' ? [localApiOrigin, localFunctionOrigin] : [],
+  ['https://${api.properties.configuration.ingress.fqdn}']
+)
 var deploymentContainerName = 'function-releases'
 
 resource foundry 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
@@ -590,7 +603,14 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'ENABLE_INSTRUMENTATION', value: 'true' }
         { name: 'ENABLE_SENSITIVE_DATA', value: 'false' }
+        { name: 'ALLOWED_ORIGINS', value: join(functionAppOrigins, ',') }
       ]
+      // Platform-level CORS allowlist. Never a wildcard: only the known frontend,
+      // Container App, and (in dev) local origins may call these HTTP triggers.
+      cors: {
+        allowedOrigins: functionAppOrigins
+        supportCredentials: false
+      }
     }
   }
 }
@@ -636,6 +656,9 @@ output documentIntelligenceEndpoint string = documentIntelligence.properties.end
 output appInsightsName string = appInsights.name
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
 output staticWebAppName string = frontend.name
+output staticWebAppUrl string = 'https://${frontend.properties.defaultHostname}'
+output allowedOrigins string = join(frontendOrigins, ',')
+output functionAllowedOrigins string = join(functionAppOrigins, ',')
 output communicationServiceName string = communicationService.name
 output communicationServiceEndpoint string = 'https://${communicationService.name}.communication.azure.com'
 output emailServiceName string = emailService.name

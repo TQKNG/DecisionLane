@@ -76,6 +76,8 @@ jobs:
           echo "ACS_ENDPOINT=$(jq -r '.communicationServiceEndpoint.value' outputs.json)" >> "$GITHUB_ENV"
           echo "EMAIL_SERVICE_NAME=$(jq -r '.emailServiceName.value' outputs.json)" >> "$GITHUB_ENV"
           echo "APPINSIGHTS_CONNECTION_STRING=$(jq -r '.appInsightsConnectionString.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "ALLOWED_ORIGINS=$(jq -r '.allowedOrigins.value' outputs.json)" >> "$GITHUB_ENV"
+          echo "FUNCTION_ALLOWED_ORIGINS=$(jq -r '.functionAllowedOrigins.value' outputs.json)" >> "$GITHUB_ENV"
 
       - name: Build backend image
         if: inputs.deploy_target != 'frontend'
@@ -132,7 +134,8 @@ jobs:
               "ACS_SENDER_ADDRESS=DoNotReply@${SENDER_DOMAIN}" \
               "APPLICATIONINSIGHTS_CONNECTION_STRING=${APPINSIGHTS_CONNECTION_STRING}" \
               "ENABLE_INSTRUMENTATION=true" \
-              "ENABLE_SENSITIVE_DATA=false"
+              "ENABLE_SENSITIVE_DATA=false" \
+              "ALLOWED_ORIGINS=${FUNCTION_ALLOWED_ORIGINS}"
           FUNCTION_KEY=$(az functionapp keys list \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
             --name "$FUNCTION_NAME" \
@@ -149,6 +152,7 @@ jobs:
             --name "$API_NAME" \
             --set-env-vars \
               "APP_ENV=dev" \
+              "ALLOWED_ORIGINS=${ALLOWED_ORIGINS}" \
               "COSMOS_ENDPOINT=${COSMOS_ENDPOINT}" \
               "COSMOS_DATABASE=refundflow" \
               "STORAGE_ACCOUNT_NAME=${STORAGE_NAME}" \
