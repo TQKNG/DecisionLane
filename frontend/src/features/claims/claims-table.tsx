@@ -8,13 +8,23 @@ import type { RefundClaim } from "@/features/claims/types";
  * Lists claims as a table on wide screens and as stacked cards on narrow screens.
  * Detail links are plain anchors: /claims/<id>/ is served by a host rewrite, so it has no client-side route payload.
  */
-export function ClaimsTable({ claims }: { claims: readonly RefundClaim[] }) {
+export interface ClaimsTableProps {
+    claims: readonly RefundClaim[];
+    /** Builds each claim's link. Defaults to the customer claim detail page. */
+    hrefFor?: (claimId: string) => string;
+    label?: string;
+    /** Adds the customer's email for staff views that list claims across customers. */
+    showCustomer?: boolean;
+}
+
+export function ClaimsTable({ claims, hrefFor = claimDetailHref, label = "Your refund claims", showCustomer = false }: ClaimsTableProps) {
     return <>
-        <DataTable className="dl-claims-table" aria-label="Your refund claims">
-            <thead><tr><th scope="col">Claim</th><th scope="col">Order</th><th scope="col">Reason</th><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Updated</th></tr></thead>
+        <DataTable className="dl-claims-table" aria-label={label}>
+            <thead><tr><th scope="col">Claim</th>{showCustomer && <th scope="col">Customer</th>}<th scope="col">Order</th><th scope="col">Reason</th><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Updated</th></tr></thead>
             <tbody>
                 {claims.map((claim) => <tr key={claim.id}>
-                    <th scope="row" className="dl-claims-id"><a className="dl-claims-link" href={claimDetailHref(claim.id)}>{claim.id}</a></th>
+                    <th scope="row" className="dl-claims-id"><a className="dl-claims-link" href={hrefFor(claim.id)}>{claim.id}</a></th>
+                    {showCustomer && <td className="dl-claims-muted">{claim.customer_email}</td>}
                     <td className="dl-claims-muted">{claim.order_id}</td>
                     <td>{formatClaimType(claim.claim_type)}</td>
                     <td>{formatAmount(claim.requested_amount, claim.currency)}</td>
@@ -23,10 +33,11 @@ export function ClaimsTable({ claims }: { claims: readonly RefundClaim[] }) {
                 </tr>)}
             </tbody>
         </DataTable>
-        <ul className="dl-claims-cards" aria-label="Your refund claims">
+        <ul className="dl-claims-cards" aria-label={label}>
             {claims.map((claim) => <li key={claim.id} className="dl-card dl-claims-card">
-                <div className="dl-claims-card-head"><a className="dl-claims-id dl-claims-link" href={claimDetailHref(claim.id)}>{claim.id}</a><ClaimStatusBadge status={claim.status} /></div>
+                <div className="dl-claims-card-head"><a className="dl-claims-id dl-claims-link" href={hrefFor(claim.id)}>{claim.id}</a><ClaimStatusBadge status={claim.status} /></div>
                 <dl>
+                    {showCustomer && <div><dt>Customer</dt><dd>{claim.customer_email}</dd></div>}
                     <div><dt>Order</dt><dd>{claim.order_id}</dd></div>
                     <div><dt>Reason</dt><dd>{formatClaimType(claim.claim_type)}</dd></div>
                     <div><dt>Amount</dt><dd>{formatAmount(claim.requested_amount, claim.currency)}</dd></div>
