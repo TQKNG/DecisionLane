@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.47.16.16243",
-      "templateHash": "5263013044507182427"
+      "templateHash": "9571801535166653116"
     }
   },
   "parameters": {
@@ -42,6 +42,20 @@
       "defaultValue": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest",
       "metadata": {
         "description": "Initial public image used before the API image is pushed."
+      }
+    },
+    "apiImage": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "API container image to deploy. Pass the currently running image when redeploying infrastructure so this template does not revert the app to bootstrapImage; leave empty to use bootstrapImage for a brand new environment."
+      }
+    },
+    "apiAcrPullRoleAssignmentName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of a pre-existing role assignment granting the API identity AcrPull on the container registry. Same adoption behavior as the Foundry role assignment params: set to update in place instead of creating a conflicting assignment."
       }
     },
     "budgetEmail": {
@@ -158,7 +172,8 @@
         "name": "system",
         "partitionKey": "/document_type"
       }
-    ]
+    ],
+    "acrPullRoleId": "7f951dda-4ed3-4680-a7ca-43fe172d538d"
   },
   "resources": [
     {
@@ -653,13 +668,19 @@
               "name": "function-key",
               "value": "placeholder"
             }
+          ],
+          "registries": [
+            {
+              "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').loginServer]",
+              "identity": "system"
+            }
           ]
         },
         "template": {
           "containers": [
             {
               "name": "api",
-              "image": "[parameters('bootstrapImage')]",
+              "image": "[if(empty(parameters('apiImage')), parameters('bootstrapImage'), parameters('apiImage'))]",
               "resources": {
                 "cpu": "[json('0.5')]",
                 "memory": "1Gi"
@@ -769,6 +790,7 @@
         }
       },
       "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
         "[resourceId('Microsoft.Insights/components', format('{0}-appi', variables('prefix')))]",
         "[resourceId('Microsoft.App/managedEnvironments', format('{0}-aca', variables('prefix')))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', format('{0}-safety-{1}', variables('prefix'), variables('token')))]",
@@ -777,6 +799,21 @@
         "[resourceId('Microsoft.Web/staticSites', format('{0}-web', variables('prefix')))]",
         "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
+      "name": "[if(empty(parameters('apiAcrPullRoleAssignmentName')), guid(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), resourceId('Microsoft.App/containerApps', variables('appName')), variables('acrPullRoleId')), parameters('apiAcrPullRoleAssignmentName'))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.App/containerApps', variables('appName')), '2024-03-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPullRoleId'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]",
+        "[resourceId('Microsoft.App/containerApps', variables('appName'))]"
       ]
     },
     {
