@@ -476,6 +476,25 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
           }
         ]
       }
+      // Declared to match what the deploy workflow maintains out-of-band (az containerapp secret set).
+      // Must stay in sync with deploy-dev.yml or redeploying this template will try to remove secrets
+      // that older active revisions still reference and the deployment will fail.
+      secrets: [
+        {
+          name: 'search-query-key'
+          identity: 'system'
+          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/azure-search-query-key'
+        }
+        {
+          name: 'stripe-webhook-secret'
+          identity: 'system'
+          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/stripe-webhook-secret'
+        }
+        {
+          name: 'function-key'
+          value: 'placeholder'
+        }
+      ]
     }
     template: {
       containers: [
