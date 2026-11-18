@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.48.1.52935",
-      "templateHash": "7093156115833658255"
+      "version": "0.47.16.16243",
+      "templateHash": "5263013044507182427"
     }
   },
   "parameters": {
@@ -70,6 +70,20 @@
         "description": "Existing Microsoft Foundry resource that hosts Content Understanding."
       }
     },
+    "apiFoundryRoleAssignmentName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of a pre-existing role assignment to adopt for the API identity Foundry RBAC grant, avoiding a delete-then-recreate on redeploy. Leave empty for a fresh environment."
+      }
+    },
+    "functionFoundryRoleAssignmentName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of a pre-existing role assignment to adopt for the Function identity Foundry RBAC grant. Same purpose as apiFoundryRoleAssignmentName."
+      }
+    },
     "contentUnderstandingDocumentAnalyzerId": {
       "type": "string",
       "defaultValue": "refund_evidence_document_classifier",
@@ -96,6 +110,20 @@
       "defaultValue": "http://localhost:3000",
       "metadata": {
         "description": "Local frontend origin allowed to call the API and upload evidence to Blob Storage in the dev environment."
+      }
+    },
+    "localApiOrigin": {
+      "type": "string",
+      "defaultValue": "http://localhost:8000",
+      "metadata": {
+        "description": "Local API origin allowed to call the Function App in the dev environment."
+      }
+    },
+    "localFunctionOrigin": {
+      "type": "string",
+      "defaultValue": "http://localhost:7071",
+      "metadata": {
+        "description": "Local Function App origin allowed for same-origin tooling in the dev environment."
       }
     }
   },
@@ -609,7 +637,23 @@
                 "weight": 100
               }
             ]
-          }
+          },
+          "secrets": [
+            {
+              "name": "search-query-key",
+              "identity": "system",
+              "keyVaultUrl": "[format('{0}secrets/azure-search-query-key', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri)]"
+            },
+            {
+              "name": "stripe-webhook-secret",
+              "identity": "system",
+              "keyVaultUrl": "[format('{0}secrets/stripe-webhook-secret', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri)]"
+            },
+            {
+              "name": "function-key",
+              "value": "placeholder"
+            }
+          ]
         },
         "template": {
           "containers": [
@@ -731,6 +775,7 @@
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', format('{0}-docs-{1}', variables('prefix'), variables('token')))]",
         "[resourceId('Microsoft.Web/staticSites', format('{0}-web', variables('prefix')))]",
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
       ]
     },
@@ -840,15 +885,25 @@
             {
               "name": "ENABLE_SENSITIVE_DATA",
               "value": "false"
+            },
+            {
+              "name": "ALLOWED_ORIGINS",
+              "value": "[join(concat(concat(if(equals(parameters('environmentName'), 'dev'), createArray(parameters('localFrontendOrigin')), createArray()), createArray(format('https://{0}', reference(resourceId('Microsoft.Web/staticSites', format('{0}-web', variables('prefix'))), '2023-12-01').defaultHostname))), if(equals(parameters('environmentName'), 'dev'), createArray(parameters('localApiOrigin'), parameters('localFunctionOrigin')), createArray()), createArray(format('https://{0}', reference(resourceId('Microsoft.App/containerApps', variables('appName')), '2024-03-01').configuration.ingress.fqdn))), ',')]"
             }
-          ]
+          ],
+          "cors": {
+            "allowedOrigins": "[concat(concat(if(equals(parameters('environmentName'), 'dev'), createArray(parameters('localFrontendOrigin')), createArray()), createArray(format('https://{0}', reference(resourceId('Microsoft.Web/staticSites', format('{0}-web', variables('prefix'))), '2023-12-01').defaultHostname))), if(equals(parameters('environmentName'), 'dev'), createArray(parameters('localApiOrigin'), parameters('localFunctionOrigin')), createArray()), createArray(format('https://{0}', reference(resourceId('Microsoft.App/containerApps', variables('appName')), '2024-03-01').configuration.ingress.fqdn)))]",
+            "supportCredentials": false
+          }
         }
       },
       "dependsOn": [
+        "[resourceId('Microsoft.App/containerApps', variables('appName'))]",
         "[resourceId('Microsoft.Insights/components', format('{0}-appi', variables('prefix')))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', format('{0}-safety-{1}', variables('prefix'), variables('token')))]",
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', format('{0}-docs-{1}', variables('prefix'), variables('token')))]",
+        "[resourceId('Microsoft.Web/staticSites', format('{0}-web', variables('prefix')))]",
         "[resourceId('Microsoft.Web/serverfarms', format('{0}-flex', variables('prefix')))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
       ]
@@ -886,6 +941,12 @@
           },
           "functionPrincipalId": {
             "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionName')), '2023-12-01', 'full').identity.principalId]"
+          },
+          "apiRoleAssignmentName": {
+            "value": "[parameters('apiFoundryRoleAssignmentName')]"
+          },
+          "functionRoleAssignmentName": {
+            "value": "[parameters('functionFoundryRoleAssignmentName')]"
           }
         },
         "template": {
@@ -894,8 +955,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.48.1.52935",
-              "templateHash": "6568398117268463631"
+              "version": "0.47.16.16243",
+              "templateHash": "16501368630819187523"
             }
           },
           "parameters": {
@@ -916,17 +977,31 @@
               "metadata": {
                 "description": "Managed identity principal ID for the Durable Functions workload."
               }
+            },
+            "apiRoleAssignmentName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Name of a pre-existing role assignment granting the API identity Cognitive Services User on the Foundry resource. Set this to adopt an assignment created outside this template instead of creating a new one, so redeploys update it in place rather than deleting and recreating it (which would briefly revoke access the running app has no retry logic for). Leave empty to let Bicep compute a deterministic name for a fresh assignment."
+              }
+            },
+            "functionRoleAssignmentName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Name of a pre-existing role assignment granting the Function identity Cognitive Services User on the Foundry resource. Same adoption behavior as apiRoleAssignmentName."
+              }
             }
           },
           "variables": {
-            "cognitiveServicesUserRoleId": "a97b65f3-24c7-4388-baec-2e347c3135b3"
+            "cognitiveServicesUserRoleId": "a97b65f3-24c7-4388-baec-2e87135dc908"
           },
           "resources": [
             {
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('foundryResourceName'))]",
-              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('foundryResourceName')), parameters('apiPrincipalId'), variables('cognitiveServicesUserRoleId'))]",
+              "name": "[if(empty(parameters('apiRoleAssignmentName')), guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('foundryResourceName')), parameters('apiPrincipalId'), variables('cognitiveServicesUserRoleId')), parameters('apiRoleAssignmentName'))]",
               "properties": {
                 "principalId": "[parameters('apiPrincipalId')]",
                 "principalType": "ServicePrincipal",
@@ -937,7 +1012,7 @@
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
               "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('foundryResourceName'))]",
-              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('foundryResourceName')), parameters('functionPrincipalId'), variables('cognitiveServicesUserRoleId'))]",
+              "name": "[if(empty(parameters('functionRoleAssignmentName')), guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('foundryResourceName')), parameters('functionPrincipalId'), variables('cognitiveServicesUserRoleId')), parameters('functionRoleAssignmentName'))]",
               "properties": {
                 "principalId": "[parameters('functionPrincipalId')]",
                 "principalType": "ServicePrincipal",
@@ -1025,6 +1100,18 @@
     "staticWebAppName": {
       "type": "string",
       "value": "[format('{0}-web', variables('prefix'))]"
+    },
+    "staticWebAppUrl": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/staticSites', format('{0}-web', variables('prefix'))), '2023-12-01').defaultHostname)]"
+    },
+    "allowedOrigins": {
+      "type": "string",
+      "value": "[join(concat(if(equals(parameters('environmentName'), 'dev'), createArray(parameters('localFrontendOrigin')), createArray()), createArray(format('https://{0}', reference(resourceId('Microsoft.Web/staticSites', format('{0}-web', variables('prefix'))), '2023-12-01').defaultHostname))), ',')]"
+    },
+    "functionAllowedOrigins": {
+      "type": "string",
+      "value": "[join(concat(concat(if(equals(parameters('environmentName'), 'dev'), createArray(parameters('localFrontendOrigin')), createArray()), createArray(format('https://{0}', reference(resourceId('Microsoft.Web/staticSites', format('{0}-web', variables('prefix'))), '2023-12-01').defaultHostname))), if(equals(parameters('environmentName'), 'dev'), createArray(parameters('localApiOrigin'), parameters('localFunctionOrigin')), createArray()), createArray(format('https://{0}', reference(resourceId('Microsoft.App/containerApps', variables('appName')), '2024-03-01').configuration.ingress.fqdn))), ',')]"
     },
     "communicationServiceName": {
       "type": "string",

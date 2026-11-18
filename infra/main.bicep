@@ -27,6 +27,12 @@ param foundryResourceGroup string = 'rg-foundry-models'
 @description('Existing Microsoft Foundry resource that hosts Content Understanding.')
 param foundryResourceName string = 'fd-resource-dev'
 
+@description('Name of a pre-existing role assignment to adopt for the API identity Foundry RBAC grant, avoiding a delete-then-recreate on redeploy. Leave empty for a fresh environment.')
+param apiFoundryRoleAssignmentName string = ''
+
+@description('Name of a pre-existing role assignment to adopt for the Function identity Foundry RBAC grant. Same purpose as apiFoundryRoleAssignmentName.')
+param functionFoundryRoleAssignmentName string = ''
+
 @description('Content Understanding document analyzer identifier.')
 param contentUnderstandingDocumentAnalyzerId string = 'refund_evidence_document_classifier'
 
@@ -641,6 +647,8 @@ module foundryRoleAssignments 'foundry-role-assignments.bicep' = {
     foundryResourceName: foundryResourceName
     apiPrincipalId: api.identity.principalId
     functionPrincipalId: functionApp.identity.principalId
+    apiRoleAssignmentName: apiFoundryRoleAssignmentName
+    functionRoleAssignmentName: functionFoundryRoleAssignmentName
   }
 }
 
