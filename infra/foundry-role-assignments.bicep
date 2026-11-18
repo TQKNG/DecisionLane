@@ -9,7 +9,7 @@ param apiPrincipalId string
 @description('Managed identity principal ID for the Durable Functions workload.')
 param functionPrincipalId string
 
-var cognitiveServicesUserRoleId = 'a97b65f3-24c7-4388-baec-2e347c3135b3'
+var cognitiveServicesUserRoleId = 'a97b65f3-24c7-4388-baec-2e87135dc908'
 
 resource foundry 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
   name: foundryResourceName
