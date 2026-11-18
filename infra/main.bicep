@@ -15,6 +15,12 @@ param contentSafetyLocation string = 'canadaeast'
 @description('Initial public image used before the API image is pushed.')
 param bootstrapImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
+@description('API container image to deploy. Pass the currently running image when redeploying infrastructure so this template does not revert the app to bootstrapImage; leave empty to use bootstrapImage for a brand new environment.')
+param apiImage string = ''
+
+@description('Name of a pre-existing role assignment granting the API identity AcrPull on the container registry. Same adoption behavior as the Foundry role assignment params: set to update in place instead of creating a conflicting assignment.')
+param apiAcrPullRoleAssignmentName string = ''
+
 @description('Address that receives Azure budget notifications.')
 param budgetEmail string
 
@@ -26,6 +32,12 @@ param foundryResourceGroup string = 'rg-foundry-models'
 
 @description('Existing Microsoft Foundry resource that hosts Content Understanding.')
 param foundryResourceName string = 'fd-resource-dev'
+
+@description('Name of a pre-existing role assignment to adopt for the API identity Foundry RBAC grant, avoiding a delete-then-recreate on redeploy. Leave empty for a fresh environment.')
+param apiFoundryRoleAssignmentName string = ''
+
+@description('Name of a pre-existing role assignment to adopt for the Function identity Foundry RBAC grant. Same purpose as apiFoundryRoleAssignmentName.')
+param functionFoundryRoleAssignmentName string = ''
 
 @description('Content Understanding document analyzer identifier.')
 param contentUnderstandingDocumentAnalyzerId string = 'refund_evidence_document_classifier'
@@ -495,12 +507,20 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
           value: 'placeholder'
         }
       ]
+      // Required for the platform to use the identity below when pulling from acr;
+      // RBAC alone (AcrPull) is not enough without this binding.
+      registries: [
+        {
+          server: acr.properties.loginServer
+          identity: 'system'
+        }
+      ]
     }
     template: {
       containers: [
         {
           name: 'api'
-          image: bootstrapImage
+          image: empty(apiImage) ? bootstrapImage : apiImage
           resources: {
             cpu: json('0.5')
             memory: '1Gi'
@@ -560,6 +580,18 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
         ]
       }
     }
+  }
+}
+
+var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+
+resource apiAcrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: empty(apiAcrPullRoleAssignmentName) ? guid(acr.id, api.id, acrPullRoleId) : apiAcrPullRoleAssignmentName
+  scope: acr
+  properties: {
+    principalId: api.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleId)
   }
 }
 
@@ -641,6 +673,8 @@ module foundryRoleAssignments 'foundry-role-assignments.bicep' = {
     foundryResourceName: foundryResourceName
     apiPrincipalId: api.identity.principalId
     functionPrincipalId: functionApp.identity.principalId
+    apiRoleAssignmentName: apiFoundryRoleAssignmentName
+    functionRoleAssignmentName: functionFoundryRoleAssignmentName
   }
 }
 

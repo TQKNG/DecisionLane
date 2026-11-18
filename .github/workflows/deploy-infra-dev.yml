@@ -25,10 +25,18 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - name: Validate infrastructure template
         run: az bicep build --file infra/main.bicep
+      - name: Read currently deployed API image
+        run: |
+          CURRENT_IMAGE=$(az containerapp show \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name refundflow-dev-api \
+            --query "properties.template.containers[0].image" -o tsv 2>/dev/null || true)
+          echo "CURRENT_IMAGE=${CURRENT_IMAGE}" >> "$GITHUB_ENV"
       - name: Deploy infrastructure
         run: |
           az deployment group create \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
             --template-file infra/main.bicep \
             --parameters infra/dev.bicepparam \
+            --parameters apiImage="${CURRENT_IMAGE}" \
             --name "refundflow-infra-${GITHUB_SHA::7}"
