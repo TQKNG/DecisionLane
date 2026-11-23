@@ -104,4 +104,5 @@ Branch protection is managed in GitHub Settings, not by these workflow files.
 ## Project policies
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a change. The [Code of Conduct](CODE_OF_CONDUCT.md) describes participation expectations and maintainer contact details.
+The release process, including how the changelog is generated, is described in [RELEASING.md](RELEASING.md).
 Licensing terms are in [LICENSE](LICENSE).

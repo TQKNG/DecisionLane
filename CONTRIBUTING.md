@@ -60,4 +60,6 @@ Include screenshots for visible UI changes and describe any configuration or mig
 Keep unrelated edits out of the pull request and respond to review feedback constructively.
 
 Use `type(scope): summary` for commit messages when practical, such as `fix(api): reject invalid evidence` or `docs: clarify deployment setup`.
+Release notes and version bumps are generated from commit messages on `master`, so keep commits and squash-merge pull request titles in Conventional Commits form.
+See [RELEASING.md](RELEASING.md) for how releases are prepared and published.
 Do not add an agent name as a commit co-author.
