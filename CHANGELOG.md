@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2](https://github.com/TQKNG/DecisionLane/compare/v1.0.1...v1.0.2) (2026-11-24)
+
+
+### Bug Fixes
+
+* **ci:** pin the weekly evaluation to the Azure CLI credential ([#36](https://github.com/TQKNG/DecisionLane/issues/36)) ([ca86668](https://github.com/TQKNG/DecisionLane/commit/ca8666894cabe8ff03b9167e17ae032ebe09a3e2))
+* **evals:** make the weekly Foundry evaluation reliable ([#34](https://github.com/TQKNG/DecisionLane/issues/34)) ([327b87a](https://github.com/TQKNG/DecisionLane/commit/327b87acb0b6c8c93b1455a423bc4cf0902c3542))
+
 ## [1.0.1](https://github.com/TQKNG/DecisionLane/compare/v1.0.0...v1.0.1) (2026-11-24)
 
 
