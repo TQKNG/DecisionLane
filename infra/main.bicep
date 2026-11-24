@@ -39,6 +39,9 @@ param apiFoundryRoleAssignmentName string = ''
 @description('Name of a pre-existing role assignment to adopt for the Function identity Foundry RBAC grant. Same purpose as apiFoundryRoleAssignmentName.')
 param functionFoundryRoleAssignmentName string = ''
 
+@description('Object ID of the GitHub Actions service principal that runs Foundry evaluations. Leave empty when no evaluation identity is configured.')
+param evaluationPrincipalId string = ''
+
 @description('Content Understanding document analyzer identifier.')
 param contentUnderstandingDocumentAnalyzerId string = 'refund_evidence_document_classifier'
 
@@ -673,6 +676,7 @@ module foundryRoleAssignments 'foundry-role-assignments.bicep' = {
     foundryResourceName: foundryResourceName
     apiPrincipalId: api.identity.principalId
     functionPrincipalId: functionApp.identity.principalId
+    evaluationPrincipalId: evaluationPrincipalId
     apiRoleAssignmentName: apiFoundryRoleAssignmentName
     functionRoleAssignmentName: functionFoundryRoleAssignmentName
   }

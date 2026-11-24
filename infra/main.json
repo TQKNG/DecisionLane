@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.47.16.16243",
-      "templateHash": "9571801535166653116"
+      "version": "0.48.1.52935",
+      "templateHash": "13857668303805820504"
     }
   },
   "parameters": {
@@ -96,6 +96,13 @@
       "defaultValue": "",
       "metadata": {
         "description": "Name of a pre-existing role assignment to adopt for the Function identity Foundry RBAC grant. Same purpose as apiFoundryRoleAssignmentName."
+      }
+    },
+    "evaluationPrincipalId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Object ID of the GitHub Actions service principal that runs Foundry evaluations. Leave empty when no evaluation identity is configured."
       }
     },
     "contentUnderstandingDocumentAnalyzerId": {
@@ -979,6 +986,9 @@
           "functionPrincipalId": {
             "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionName')), '2023-12-01', 'full').identity.principalId]"
           },
+          "evaluationPrincipalId": {
+            "value": "[parameters('evaluationPrincipalId')]"
+          },
           "apiRoleAssignmentName": {
             "value": "[parameters('apiFoundryRoleAssignmentName')]"
           },
@@ -992,8 +1002,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.47.16.16243",
-              "templateHash": "16501368630819187523"
+              "version": "0.48.1.52935",
+              "templateHash": "7361267129366775489"
             }
           },
           "parameters": {
@@ -1013,6 +1023,13 @@
               "type": "string",
               "metadata": {
                 "description": "Managed identity principal ID for the Durable Functions workload."
+              }
+            },
+            "evaluationPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Service principal object ID for the weekly Foundry evaluation workflow."
               }
             },
             "apiRoleAssignmentName": {
@@ -1052,6 +1069,18 @@
               "name": "[if(empty(parameters('functionRoleAssignmentName')), guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('foundryResourceName')), parameters('functionPrincipalId'), variables('cognitiveServicesUserRoleId')), parameters('functionRoleAssignmentName'))]",
               "properties": {
                 "principalId": "[parameters('functionPrincipalId')]",
+                "principalType": "ServicePrincipal",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('cognitiveServicesUserRoleId'))]"
+              }
+            },
+            {
+              "condition": "[not(empty(parameters('evaluationPrincipalId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('foundryResourceName'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('foundryResourceName')), parameters('evaluationPrincipalId'), variables('cognitiveServicesUserRoleId'))]",
+              "properties": {
+                "principalId": "[parameters('evaluationPrincipalId')]",
                 "principalType": "ServicePrincipal",
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('cognitiveServicesUserRoleId'))]"
               }
