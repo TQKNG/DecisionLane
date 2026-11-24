@@ -94,6 +94,8 @@ The frontend job includes lint, typecheck, and production build.
 The [infrastructure](.github/workflows/deploy-infra-dev.yml) and [application](.github/workflows/deploy-dev.yml) deployment workflows run manually from `master` and use the GitHub `dev` environment.
 Run CI successfully before deploying, deploy infrastructure first when resources change, and then run the application workflow.
 The [weekly Foundry evaluation](.github/workflows/evaluate.yml) runs on a schedule or manually from `master` and requires configured development Azure resources.
+Deploy infrastructure after changing the evaluation identity so its Foundry inference role is assigned.
+The evaluation workflow reads the Blob endpoint from the latest successful infrastructure deployment output.
 
 Configure the `dev` environment with the Azure OIDC variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, and `AZURE_RESOURCE_GROUP`, plus the service variables referenced by the deployment and evaluation workflows.
 Store the Static Web Apps deployment token as `AZURE_STATIC_WEB_APPS_API_TOKEN` in GitHub Actions secrets.

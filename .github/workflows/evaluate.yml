@@ -26,6 +26,26 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Read deployment outputs
+        run: |
+          DEPLOYMENT_NAME=$(az deployment group list \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query "[?starts_with(name, 'refundflow-') && properties.provisioningState=='Succeeded'] | sort_by(@, &properties.timestamp) | [-1].name" \
+            --output tsv)
+          if [ -z "$DEPLOYMENT_NAME" ]; then
+            echo "::error::No successful DecisionLane infrastructure deployment found. Run Deploy development infrastructure first."
+            exit 1
+          fi
+          az deployment group show \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "$DEPLOYMENT_NAME" \
+            --query properties.outputs -o json > outputs.json
+          STORAGE_ACCOUNT_URL=$(jq -r '.storageAccountUrl.value // empty' outputs.json)
+          if [ -z "$STORAGE_ACCOUNT_URL" ]; then
+            echo "::error::The infrastructure deployment has no storageAccountUrl output."
+            exit 1
+          fi
+          echo "STORAGE_ACCOUNT_URL=$STORAGE_ACCOUNT_URL" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -46,7 +66,6 @@ jobs:
           AZURE_SEARCH_ENDPOINT: ${{ vars.AZURE_SEARCH_ENDPOINT }}
           AZURE_SEARCH_INDEX: refundflow-policies-v1
           COSMOS_ENDPOINT: ${{ vars.COSMOS_ENDPOINT }}
-          STORAGE_ACCOUNT_URL: ${{ vars.STORAGE_ACCOUNT_URL }}
           CONTENT_SAFETY_ENDPOINT: ${{ vars.CONTENT_SAFETY_ENDPOINT }}
           DOCUMENT_INTELLIGENCE_ENDPOINT: ${{ vars.DOCUMENT_INTELLIGENCE_ENDPOINT }}
         run: |

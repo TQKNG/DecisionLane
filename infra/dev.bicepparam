@@ -5,6 +5,7 @@ param location = 'canadacentral'
 param contentSafetyLocation = 'canadaeast'
 param budgetEmail = 'khanhnguyen.trq@gmail.com'
 param budgetStartDate = '2026-10-01T00:00:00Z'
+param evaluationPrincipalId = '2641f210-6390-4492-a95c-f70e417bf30b'
 // Adopts role assignments created on 2026-11-02 for the dev API and Function
 // managed identities, so redeploys update them in place instead of deleting
 // and recreating the grant (which would briefly revoke Foundry access).
