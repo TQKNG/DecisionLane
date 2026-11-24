@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1](https://github.com/TQKNG/DecisionLane/compare/v1.0.0...v1.0.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **ci:** restore weekly Foundry evaluation access ([#33](https://github.com/TQKNG/DecisionLane/issues/33)) ([d0b91b8](https://github.com/TQKNG/DecisionLane/commit/d0b91b8c40f7380b27c6dcb56d83f9b09f3b028b))
+* **ci:** run weekly Foundry eval from repository root ([#30](https://github.com/TQKNG/DecisionLane/issues/30)) ([4083b89](https://github.com/TQKNG/DecisionLane/commit/4083b8928f3c9be1adf0327f7aaf53e19a0e2237))
+
 ## 1.0.0 (2026-11-23)
 
 
