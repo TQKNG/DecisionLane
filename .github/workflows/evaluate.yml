@@ -61,6 +61,10 @@ jobs:
         env:
           PYTHONPATH: backend/src:backend
           APP_ENV: dev
+          # Use the azure/login session only. The default credential chain probes the runner
+          # VM's metadata endpoint first, and an unexpected answer there stops the chain before
+          # it reaches the Azure CLI credential.
+          AZURE_TOKEN_CREDENTIALS: AzureCliCredential
           EVAL_CASE_COUNT: ${{ inputs.case_count || '5' }}
           FOUNDRY_PROJECT_ENDPOINT: ${{ vars.FOUNDRY_PROJECT_ENDPOINT }}
           FOUNDRY_RESOURCE_ENDPOINT: ${{ vars.FOUNDRY_RESOURCE_ENDPOINT }}
