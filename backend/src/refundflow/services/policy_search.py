@@ -81,6 +81,9 @@ async def retrieve_policy_passages(
 ) -> list[PolicyCitation]:
     """Return claim-specific passages plus the general eligibility rules, without duplicates."""
     passages = await policy_search.search(build_claim_policy_query(claim), top=top)
+    if not passages:
+        # Keep the original failure condition: the general rules alone are not a usable result.
+        return []
     general = await policy_search.search(GENERAL_POLICY_QUERY, top=1)
     seen = {citation.chunk_id for citation in passages}
     return [*passages, *(citation for citation in general if citation.chunk_id not in seen)]

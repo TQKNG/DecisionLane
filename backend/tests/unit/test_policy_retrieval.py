@@ -91,3 +91,12 @@ async def test_returns_empty_when_nothing_is_retrieved() -> None:
     fake = FakePolicySearch({build_claim_policy_query(claim): [], GENERAL_POLICY_QUERY: []})
 
     assert await retrieve_policy_passages(as_service(fake), claim) == []
+
+
+async def test_general_rules_alone_are_not_a_usable_result() -> None:
+    claim = make_claim()
+    general = make_citation("refund-policy-001", "General eligibility")
+    fake = FakePolicySearch({build_claim_policy_query(claim): [], GENERAL_POLICY_QUERY: [general]})
+
+    assert await retrieve_policy_passages(as_service(fake), claim) == []
+    assert fake.calls == [(build_claim_policy_query(claim), 5)]
