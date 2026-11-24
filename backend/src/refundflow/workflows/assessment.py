@@ -23,10 +23,16 @@ from refundflow.domain.models import (
     EvidenceBundle,
     GroundedAssessmentRequest,
 )
-from refundflow.services.policy_search import PolicySearchService
+from refundflow.services.policy_search import PolicySearchService, retrieve_policy_passages
 from refundflow.telemetry import get_trace_id
 
 PROMPT_VERSION = "refund-assessment-2026-01"
+POLICY_SNAPSHOT_ID = "refund-policy:2026-01"
+
+
+def build_assessment_prompt(request: GroundedAssessmentRequest) -> str:
+    """Serialize the exact input the assessment model receives."""
+    return json.dumps(request.model_dump(mode="json"), ensure_ascii=False)
 
 
 class EvidenceValidationExecutor(Executor):
@@ -62,20 +68,14 @@ class PolicyRetrievalExecutor(Executor):
         evidence: EvidenceBundle,
         ctx: WorkflowContext[GroundedAssessmentRequest],
     ) -> None:
-        claim = evidence.claim
-        query = (
-            f"Refund requirements for {claim.claim_type.value}. "
-            f"Requested amount {claim.requested_amount} {claim.currency}. "
-            f"Reason: {claim.reason}"
-        )
-        citations = await self._policy_search.search(query, top=5)
+        citations = await retrieve_policy_passages(self._policy_search, evidence.claim)
         if not citations:
             raise ValueError("No refund policy passages were retrieved")
         await ctx.send_message(
             GroundedAssessmentRequest(
                 evidence=evidence,
                 policy_citations=citations,
-                policy_snapshot_id="refund-policy:2026-01",
+                policy_snapshot_id=POLICY_SNAPSHOT_ID,
             )
         )
 
@@ -111,7 +111,7 @@ class AssessmentExecutor(Executor):
         request: GroundedAssessmentRequest,
         ctx: WorkflowContext[AssessmentResult],
     ) -> None:
-        prompt = json.dumps(request.model_dump(mode="json"), ensure_ascii=False)
+        prompt = build_assessment_prompt(request)
         try:
             response = await self._agent.run(
                 prompt,

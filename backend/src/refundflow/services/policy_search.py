@@ -4,7 +4,7 @@ from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.aio import SearchClient
 from azure.search.documents.models import VectorizedQuery
 
-from refundflow.domain.models import PolicyCitation
+from refundflow.domain.models import PolicyCitation, RefundClaim
 from refundflow.services.embeddings import EmbeddingService
 
 
@@ -57,3 +57,30 @@ class PolicySearchService:
 
     async def close(self) -> None:
         await self._client.close()
+
+
+# Rules that apply to every claim type (submission window, order identification).
+# The claim-specific query rarely ranks them, so they are retrieved separately.
+GENERAL_POLICY_QUERY = (
+    "General eligibility: claim submission deadline and order identifier requirements"
+)
+
+
+def build_claim_policy_query(claim: RefundClaim) -> str:
+    return (
+        f"Refund requirements for {claim.claim_type.value}. "
+        f"Requested amount {claim.requested_amount} {claim.currency}. "
+        f"Reason: {claim.reason}"
+    )
+
+
+async def retrieve_policy_passages(
+    policy_search: PolicySearchService,
+    claim: RefundClaim,
+    top: int = 5,
+) -> list[PolicyCitation]:
+    """Return claim-specific passages plus the general eligibility rules, without duplicates."""
+    passages = await policy_search.search(build_claim_policy_query(claim), top=top)
+    general = await policy_search.search(GENERAL_POLICY_QUERY, top=1)
+    seen = {citation.chunk_id for citation in passages}
+    return [*passages, *(citation for citation in general if citation.chunk_id not in seen)]
