@@ -11,6 +11,7 @@ from agent_framework import EvalItem, Message
 from agent_framework.foundry import FoundryChatClient, FoundryEvals
 from azure.ai.projects.aio import AIProjectClient
 from azure.identity.aio import DefaultAzureCredential
+from eval_cases import format_case_failure, select_cases
 from functions.services import ActivityServices
 from refundflow.config import get_settings
 from refundflow.domain.models import (
@@ -18,19 +19,32 @@ from refundflow.domain.models import (
     ClaimType,
     EvidenceBundle,
     ExtractedDocument,
+    GroundedAssessmentRequest,
+    PolicyCitation,
     RefundClaim,
     SafetyAnalysis,
     SafetyDecision,
 )
-from refundflow.workflows.assessment import build_assessment_workflow
+from refundflow.services.policy_search import retrieve_policy_passages
+from refundflow.workflows.assessment import (
+    POLICY_SNAPSHOT_ID,
+    build_assessment_prompt,
+    build_assessment_workflow,
+)
 
 
-def make_policy_query(evidence: EvidenceBundle) -> str:
-    claim = evidence.claim
-    return (
-        f"Refund requirements for {claim.claim_type.value}. "
-        f"Requested amount {claim.requested_amount} {claim.currency}. "
-        f"Reason: {claim.reason}"
+def make_eval_context(evidence: EvidenceBundle, policy_citations: list[PolicyCitation]) -> str:
+    """The exact input the assessment model receives.
+
+    Groundedness is judged against this text, so it must match what the model saw,
+    including every claim field, document and policy passage.
+    """
+    return build_assessment_prompt(
+        GroundedAssessmentRequest(
+            evidence=evidence,
+            policy_citations=policy_citations,
+            policy_snapshot_id=POLICY_SNAPSHOT_ID,
+        )
     )
 
 
@@ -81,7 +95,7 @@ async def main() -> None:
     case_count = int(os.getenv("EVAL_CASE_COUNT", "5"))
     offset = int(os.getenv("EVAL_OFFSET", "0"))
     rows = [json.loads(line) for line in Path("evals/datasets/refund-cases-v1.jsonl").read_text().splitlines()]
-    selected = [rows[(offset + index) % len(rows)] for index in range(case_count)]
+    selected = select_cases(rows, case_count, offset)
     settings = get_settings()
     services = ActivityServices()
     credential = DefaultAzureCredential()
@@ -104,37 +118,38 @@ async def main() -> None:
     failures = []
     try:
         for row in selected:
-            evidence = make_evidence(row)
-            policy_citations = await services.policy_search.search(
-                make_policy_query(evidence),
-                top=5,
-            )
-            if not policy_citations:
-                raise ValueError(f"No refund policy passages were retrieved for {row['case_id']}")
-            policy_context = "\n\n".join(
-                f"[{citation.chunk_id}] {citation.title}\n{citation.quote}"
-                for citation in policy_citations
-            )
-            workflow = build_assessment_workflow(settings, services.policy_search)
-            workflow_result = await workflow.run(evidence)
-            outputs = workflow_result.get_outputs()
-            if len(outputs) != 1:
-                raise RuntimeError(
-                    f"Expected one assessment output for {row['case_id']}, received {len(outputs)}"
+            case_id = str(row["case_id"])
+            try:
+                evidence = make_evidence(row)
+                policy_citations = await retrieve_policy_passages(
+                    services.policy_search, evidence.claim
                 )
-            result = await foundry_evals.evaluate(
-                [
-                    make_eval_item(
-                        evidence,
-                        outputs[0],
-                        policy_context,
+                if not policy_citations:
+                    raise ValueError(f"No refund policy passages were retrieved for {case_id}")
+                workflow = build_assessment_workflow(settings, services.policy_search)
+                workflow_result = await workflow.run(evidence)
+                outputs = workflow_result.get_outputs()
+                if len(outputs) != 1:
+                    raise RuntimeError(
+                        f"Expected one assessment output for {case_id}, received {len(outputs)}"
                     )
-                ],
-                eval_name=f"Refund assessment {row['case_id']}",
-            )
+                result = await foundry_evals.evaluate(
+                    [
+                        make_eval_item(
+                            evidence,
+                            outputs[0],
+                            make_eval_context(evidence, policy_citations),
+                        )
+                    ],
+                    eval_name=f"Refund assessment {case_id}",
+                )
+            except Exception as error:  # noqa: BLE001 - one failing case must not hide the rest
+                summaries.append({"case_id": case_id, "error": str(error)})
+                failures.append(f"{case_id}: error: {error}")
+                continue
             summaries.append(
                 {
-                    "case_id": row["case_id"],
+                    "case_id": case_id,
                     "provider": result.provider,
                     "eval_id": result.eval_id,
                     "run_id": result.run_id,
@@ -149,8 +164,15 @@ async def main() -> None:
             )
             if not result.all_passed:
                 failures.append(
-                    f"{row['case_id']}: eval {result.eval_id}, run {result.run_id}, "
-                    f"status={result.status}, error={result.error or 'not provided'}"
+                    format_case_failure(
+                        case_id,
+                        eval_id=result.eval_id,
+                        run_id=result.run_id,
+                        status=result.status,
+                        error=result.error,
+                        per_evaluator=result.per_evaluator,
+                        report_url=result.report_url,
+                    )
                 )
     finally:
         try:

@@ -14,10 +14,15 @@ permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: foundry-evaluation
+  cancel-in-progress: false
+
 jobs:
   evaluate:
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment: dev
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +62,6 @@ jobs:
           PYTHONPATH: backend/src:backend
           APP_ENV: dev
           EVAL_CASE_COUNT: ${{ inputs.case_count || '5' }}
-          EVAL_OFFSET: ${{ github.run_number }}
           FOUNDRY_PROJECT_ENDPOINT: ${{ vars.FOUNDRY_PROJECT_ENDPOINT }}
           FOUNDRY_RESOURCE_ENDPOINT: ${{ vars.FOUNDRY_RESOURCE_ENDPOINT }}
           FOUNDRY_MODEL: gpt-5.6-luna
@@ -69,7 +73,17 @@ jobs:
           CONTENT_SAFETY_ENDPOINT: ${{ vars.CONTENT_SAFETY_ENDPOINT }}
           DOCUMENT_INTELLIGENCE_ENDPOINT: ${{ vars.DOCUMENT_INTELLIGENCE_ENDPOINT }}
         run: |
-          if [ "$EVAL_CASE_COUNT" -gt 200 ]; then exit 2; fi
+          case "$EVAL_CASE_COUNT" in
+            ''|*[!0-9]*) echo "::error::case_count must be a whole number, received '$EVAL_CASE_COUNT'"; exit 2 ;;
+          esac
+          if [ "$EVAL_CASE_COUNT" -lt 1 ] || [ "$EVAL_CASE_COUNT" -gt 200 ]; then
+            echo "::error::case_count must be between 1 and 200, received $EVAL_CASE_COUNT"
+            exit 2
+          fi
+          # Each run starts where the previous window ended, so consecutive runs cover
+          # different cases. Five consecutive cases hold one of each evidence state.
+          EVAL_OFFSET=$(( (GITHUB_RUN_NUMBER - 1) * EVAL_CASE_COUNT ))
+          export EVAL_OFFSET
           AZURE_SEARCH_QUERY_KEY=$(az keyvault secret show \
             --vault-name "${{ vars.KEY_VAULT_NAME }}" \
             --name azure-search-query-key \

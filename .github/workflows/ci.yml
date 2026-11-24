@@ -35,6 +35,8 @@ jobs:
         run: pytest --cov=refundflow --cov-report=term-missing --cov-fail-under=80
       - name: Dataset gates
         run: PYTHONPATH=backend/src python evals/run_local_gates.py
+      - name: Evaluation helper tests
+        run: python -m pytest evals/tests -q
 
   frontend:
     runs-on: ubuntu-latest
